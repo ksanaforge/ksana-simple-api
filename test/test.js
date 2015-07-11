@@ -22,13 +22,24 @@ describe("api test",function(){
 	});
 
   //fetch a given set of uti
+  var vposes=[];
 	it("fetch test",function(done){
 		ksa.fetch({db:"sampledict",q:"內",uti:["菩提","菩提心"]},function(err,data){
 			//console.log(JSON.stringify(data))
 			assert(data.length,2);
+			vposes=data.map(function(r){return r.vpos});
 			done();
 		});
 	});
+
+  //fetch a given set of uti
+	it("fetch by vpos",function(done){
+		ksa.fetch({db:"sampledict",q:"內",vpos:vposes},function(err,data){
+			//console.log(JSON.stringify(data))
+			assert(data.length,2);
+			done();
+		});
+	});	
 
   //next is based on fetch, given a uti, fetch next batch of text.
   it("next uti",function(done){
@@ -63,4 +74,5 @@ describe("api test",function(){
 			done();
 		});
 	});
+
 })

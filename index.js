@@ -63,20 +63,31 @@ var hits2markup=function( Q,file,seg, text){
 }
 var fetch=function(opts,cb,context) {
 	var that=this;
-	if (!opts.uti) {
-		cb("missing uti");
+	if (!opts.uti && !opts.vpos) {
+		cb("missing uti or vpos");
 		return;
 	}
 	kse.search(opts.db,opts.q,{},function(err,res){
 		if (err) {
 			cb(err);
 		} else {
-			var keys=txtids2key.call(res.engine,opts.uti);
+			var uti=opts.uti;
+			if (!uti) {
+				uti=[];
+				var vpos=opts.vpos;
+				if (typeof vpos!="object") vpos=[vpos];
+				for (var i=0;i<vpos.length;i++) {
+					uti.push(res.engine.vpos2txtid(vpos[i]));
+				}
+			}
+			var keys=txtids2key.call(res.engine,uti);
+			
 			res.engine.get(keys,function(data){
 				var out=[];
-				for (var i=0;i<opts.uti.length;i++) {
+				for (var i=0;i<uti.length;i++) {
 					var hits=hits2markup.call(res.engine,res,keys[i][1],keys[i][2],data[i]);
-					out.push({uti:opts.uti[i],text:data[i],hits:hits});
+					var vpos=res.engine.txtid2vpos(uti[i]);
+					out.push({uti:uti[i],text:data[i],hits:hits,vpos:vpos});
 				}
 				cb(0,out);
 			});
