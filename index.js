@@ -81,7 +81,11 @@ var fetch=function(opts,cb,context) {
 				}
 			}
 			var keys=txtids2key.call(res.engine,uti);
-			
+			if (typeof keys[0][1]=="undefined") {
+				cb("uti not found: "+uti+" in "+opts.db);
+				return;
+			}
+
 			res.engine.get(keys,function(data){
 				var out=[];
 				for (var i=0;i<uti.length;i++) {
@@ -183,7 +187,6 @@ var filter=function(opts,cb,context) {
 	});
 }
 
-
 var API={
 	next:next,
 	prev:prev,
@@ -191,6 +194,6 @@ var API={
 	fetch:fetch,
 	excerpt:excerpt,
 	scan:scan,
-	filter:filter	
+	filter:filter
 }
 module.exports=API;
