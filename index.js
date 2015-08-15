@@ -171,34 +171,36 @@ var scan=function(opts,cb,context) {
 	});
 }
 
-var filterField=function(items,regex) {
+var filterField=function(items,regex,filterfunc) {
 	if (!regex) return items;
 	var reg=new RegExp(regex);
 	var out=[];
+	filterfunc=filterfunc|| reg.test.bind(reg);
 	for (var i=0;i<items.length;i++) {
 		var item=items[i];
-		if (item.match(reg)) {
+		if (filterfunc(item,regex)) {
 			out.push(item);
 		}
 	}
 	return out;
 }
 
-var groupByField=function(db,rawresult,field,regex,cb) {
+var groupByField=function(db,rawresult,field,regex,filterfunc,cb) {
 	db.get(["fields",field],function(fields){
 		if (!rawresult||!rawresult.length) {
-			var matches=filterField(fields,regex);
+			var matches=filterField(fields,regex,filterfunc);
 			cb(0,matches);
 		} else {
 			db.get(["fields",field+"_vpos"],function(fieldsvpos){
 				var fieldhits= plist.groupbyposting2(rawresult, fieldsvpos);
 		    var matches=[],hits=[];
 		    var reg=new RegExp(regex);
+		     filterfunc=filterfunc|| reg.test.bind(reg);
 		    for (var i=0;i<fieldhits.length;i++) {
 		      var fieldhit=fieldhits[i];
 		      if (!fieldhit || !fieldhit.length) continue;
 		      var item=txtid[txtid_invert[i]-1];
-		      if (item.match(reg)) {
+		      if (filterfunc(item,regex)) {
 		      	matches.push(item);
 		      	hits.push(fieldhit);
 		      }
@@ -209,11 +211,11 @@ var groupByField=function(db,rawresult,field,regex,cb) {
 	});
 }
 
-var groupByTxtid=function(db,rawresult,regex,cb) {
+var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
 	if (!rawresult||!rawresult.length) {
 		//no q , filter all field
 			var values=db.get("txtid");
-			var matches=filterField(values,regex);
+			var matches=filterField(values,regex,filterfunc);
 			cb(0,matches);
 	} else {
 		var segoffsets=db.get("segoffsets");
@@ -222,11 +224,12 @@ var groupByTxtid=function(db,rawresult,regex,cb) {
     var txtid=db.get("txtid");
     var matches=[],hits=[];
     var reg=new RegExp(regex);
+		 filterfunc=filterfunc|| reg.test.bind(reg);
     for (var i=0;i<seghits.length;i++) {
       var seghit=seghits[i];
       if (!seghit || !seghit.length) continue;
       var item=txtid[txtid_invert[i]-1];
-      if (item.match(reg)) {
+		  if (filterfunc(item,regex)) {
       	matches.push(item);
       	hits.push(seghit);
       }
@@ -242,11 +245,11 @@ var filter=function(opts,cb) {
 			return;
 		}
 		var db=res.engine;
-
+		filterfunc=opts.filterfunc||null;
 		if (opts.field) {
-			groupByField(db,res.rawresult,opts.field,opts.regex,cb);
+			groupByField(db,res.rawresult,opts.field,opts.regex,filterfunc,cb);
 		} else {
-			groupByTxtid(db,res.rawresult,opts.regex,cb);
+			groupByTxtid(db,res.rawresult,opts.regex,filterfunc,cb);
 		}
 	});
 }
@@ -283,6 +286,21 @@ var fillHits=function(searchable,tofind,cb) {
 	taskqueue.shift()(0,{__empty:true});
 }
 
+var renderHits=function(text,hits,func){
+  var ex=0,out=[];
+  hits=hits||[];
+  for (var i=0;i<hits.length;i++) {
+    var now=hits[i][0];
+    if (now>ex) {
+      out.push(func({key:i},text.substring(ex,now)));
+    }
+    out.push(func({key:"h"+i, className:"hl"+hits[i][2]},text.substr(now,hits[i][1])));
+    ex=now+=hits[i][1];
+  }
+  out.push(func({key:i+1},text.substr(ex)));
+  return out;
+}  
+
 var API={
 	next:next,
 	prev:prev,
@@ -294,6 +312,7 @@ var API={
 	scan:scan,
 	filter:filter,
 	listkdb:listkdb,
-	fillHits:fillHits
+	fillHits:fillHits,
+	renderHits:renderHits
 }
 module.exports=API;
