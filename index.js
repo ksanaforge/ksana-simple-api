@@ -1,4 +1,5 @@
 var kse=require("ksana-search");
+var plist=require("ksana-search/plist");
 var kde=require("ksana-database");
 var bsearch=kde.bsearch;
 
@@ -17,7 +18,7 @@ var prevUti=function(opts,cb){
 	});		
 }
 
-var next=function(opts,cb,context) {
+var _iterate=function(funcname,opts,cb,context) {
 	kse.search(opts.db,opts.q,function(err,res){
 		var db=res.engine;
 		if (err) {
@@ -27,8 +28,9 @@ var next=function(opts,cb,context) {
 		var out=[];
 		var next=opts.uti;
 		var count=opts.count||10;
+		var func=db[funcname];
 		for (var i=0;i<count;i++) {
-			var next=db.nextTxtid(next);
+			var next=func(next);
 			if (!next) break;
 			out.push(next);
 		}
@@ -36,7 +38,12 @@ var next=function(opts,cb,context) {
 		fetch(opts,cb,context);
 	});
 }
+
+var next=function(opts,cb,context) {
+	_iterate("nextTxtid",opts,cb,context);
+}
 var prev=function(opts,cb,context) {
+	_iterate("prevTxtid",opts,cb,context);
 }
 
 var toc=function(opts,cb,context) {
@@ -165,6 +172,7 @@ var scan=function(opts,cb,context) {
 }
 
 var filterField=function(items,regex) {
+	if (!regex) return items;
 	var reg=new RegExp(regex);
 	var out=[];
 	for (var i=0;i<items.length;i++) {
@@ -176,24 +184,69 @@ var filterField=function(items,regex) {
 	return out;
 }
 
-var filter=function(opts,cb,context) {
+var groupByField=function(db,rawresult,field,regex,cb) {
+	db.get(["fields",field],function(fields){
+		if (!rawresult||!rawresult.length) {
+			var matches=filterField(fields,regex);
+			cb(0,matches);
+		} else {
+			db.get(["fields",field+"_vpos"],function(fieldsvpos){
+				var fieldhits= plist.groupbyposting2(rawresult, fieldsvpos);
+		    var matches=[],hits=[];
+		    var reg=new RegExp(regex);
+		    for (var i=0;i<fieldhits.length;i++) {
+		      var fieldhit=fieldhits[i];
+		      if (!fieldhit || !fieldhit.length) continue;
+		      var item=txtid[txtid_invert[i]-1];
+		      if (item.match(reg)) {
+		      	matches.push(item);
+		      	hits.push(fieldhit);
+		      }
+		    }		
+				cb(0,matches,hits);
+			});
+		}
+	});
+}
+
+var groupByTxtid=function(db,rawresult,regex,cb) {
+	if (!rawresult||!rawresult.length) {
+		//no q , filter all field
+			var values=db.get("txtid");
+			var matches=filterField(values,regex);
+			cb(0,matches);
+	} else {
+		var segoffsets=db.get("segoffsets");
+    var seghits= plist.groupbyposting2(rawresult, segoffsets); 
+    var txtid_invert=db.get("txtid_invert");
+    var txtid=db.get("txtid");
+    var matches=[],hits=[];
+    var reg=new RegExp(regex);
+    for (var i=0;i<seghits.length;i++) {
+      var seghit=seghits[i];
+      if (!seghit || !seghit.length) continue;
+      var item=txtid[txtid_invert[i]-1];
+      if (item.match(reg)) {
+      	matches.push(item);
+      	hits.push(seghit);
+      }
+    }
+    cb(0,matches,hits);
+	}
+}
+
+var filter=function(opts,cb) {
 	kse.search(opts.db,opts.q,{},function(err,res){
 		if (err) {
 			cb(err);
 			return;
 		}
 		var db=res.engine;
-		var out=[];
 
 		if (opts.field) {
-			values=db.get(["fields",opts.field],function(data){
-				var matches=filterField(data,opts.regex);
-				cb(0,matches);
-			});
-		} else {//use uti
-			var values=db.get("txtid");
-			var matches=filterField(values,opts.regex);
-			cb(0,matches);
+			groupByField(db,res.rawresult,opts.field,opts.regex,cb);
+		} else {
+			groupByTxtid(db,res.rawresult,opts.regex,cb);
 		}
 	});
 }
