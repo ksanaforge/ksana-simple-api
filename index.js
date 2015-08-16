@@ -1,3 +1,9 @@
+/*
+	TODO : fetch tags
+	render tags
+
+*/
+
 var kse=require("ksana-search");
 var plist=require("ksana-search/plist");
 var kde=require("ksana-database");
@@ -98,6 +104,7 @@ var fetch=function(opts,cb,context) {
 					uti.push(res.engine.vpos2txtid(vpos[i]));
 				}
 			}
+			if (typeof uti!=="object") uti=[uti];
 			var keys=txtids2key.call(res.engine,uti);
 			if (typeof keys[0][1]=="undefined") {
 				cb("uti not found: "+uti+" in "+opts.db);
@@ -162,10 +169,10 @@ var scan=function(opts,cb,context) {
 		}
 		var db=res.engine;
 		var out=[];
-		var txtid=db.get("txtid");
+		var segnames=db.get("segnames");
 		for (var i=0;i<opts.sentence.length;i++) {
 			var q=opts.sentence.substr(i);
-			out=out.concat(beginWith(q,txtid));
+			out=out.concat(beginWith(q,segnames));
 		}
 		cb(0,out);
 	});
@@ -214,21 +221,20 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,cb) {
 var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
 	if (!rawresult||!rawresult.length) {
 		//no q , filter all field
-			var values=db.get("txtid");
+			var values=db.get("segnames");
 			var matches=filterField(values,regex,filterfunc);
 			cb(0,matches);
 	} else {
 		var segoffsets=db.get("segoffsets");
     var seghits= plist.groupbyposting2(rawresult, segoffsets); 
-    var txtid_invert=db.get("txtid_invert");
-    var txtid=db.get("txtid");
+    var txtid=db.get("segnames");
     var matches=[],hits=[];
     var reg=new RegExp(regex);
 		 filterfunc=filterfunc|| reg.test.bind(reg);
     for (var i=0;i<seghits.length;i++) {
       var seghit=seghits[i];
       if (!seghit || !seghit.length) continue;
-      var item=txtid[txtid_invert[i]-1];
+      var item=txtid[i-1];
 		  if (filterfunc(item,regex)) {
       	matches.push(item);
       	hits.push(seghit);
