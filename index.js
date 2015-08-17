@@ -291,7 +291,16 @@ var fillHits=function(searchable,tofind,cb) {
 	});
 	taskqueue.shift()(0,{__empty:true});
 }
-
+var tryOpen=function(kdbid,cb){
+	if ((window.location.protocol==="file:" && typeof process==="undefined") 
+	|| typeof io==="undefined" ) {
+		cb("local file mode");
+		return;
+	}
+	kde.open(kdbid,function(err){
+		cb(err);
+	});
+}
 var renderHits=function(text,hits,func){
   var ex=0,out=[];
   hits=hits||[];
@@ -319,6 +328,7 @@ var API={
 	filter:filter,
 	listkdb:listkdb,
 	fillHits:fillHits,
-	renderHits:renderHits
+	renderHits:renderHits,
+	tryOpen:tryOpen
 }
 module.exports=API;
