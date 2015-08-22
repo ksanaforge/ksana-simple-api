@@ -58,7 +58,7 @@ var toc=function(opts,cb,context) {
 		if (err) {
 			cb(err);
 		} else {
-			var tocname=res.engine.get("meta").toc;
+			var tocname=opts.tocname||res.engine.get("meta").tocs[0];
 			res.engine.getTOC({tocname:tocname},function(data){
 				cb(0,{name:tocname,toc:data,hits:res.rawresult,tocname:tocname});
 			});
@@ -101,7 +101,8 @@ var fetch=function(opts,cb,context) {
 				var vpos=opts.vpos;
 				if (typeof vpos!="object") vpos=[vpos];
 				for (var i=0;i<vpos.length;i++) {
-					uti.push(res.engine.vpos2txtid(vpos[i]));
+					var u=res.engine.vpos2txtid(vpos[i]);
+					uti.push(u);
 				}
 			}
 			if (typeof uti!=="object") uti=[uti];
@@ -194,27 +195,46 @@ var filterField=function(items,regex,filterfunc) {
 
 var groupByField=function(db,rawresult,field,regex,filterfunc,cb) {
 	db.get(["fields",field],function(fields){
-		if (!rawresult||!rawresult.length) {
-			var matches=filterField(fields,regex,filterfunc);
-			cb(0,matches);
-		} else {
-			db.get(["fields",field+"_vpos"],function(fieldsvpos){
+
+		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
+			var fieldsvpos=res[0],fieldsdepth=res[1];
+			if (!rawresult||!rawresult.length) {
+				var matches=filterField(fields,regex,filterfunc);
+				cb(0,matches,null,fieldsvpos);
+			} else {
 				var fieldhits= plist.groupbyposting2(rawresult, fieldsvpos);
-		    var matches=[],hits=[];
+				fieldhits.shift();
+		    var matches=[],hits=[],vpos=[];
 		    var reg=new RegExp(regex);
-		     filterfunc=filterfunc|| reg.test.bind(reg);
+		    filterfunc=filterfunc|| reg.test.bind(reg);
+		    var prevdepth=65535,inrange=false;
 		    for (var i=0;i<fieldhits.length;i++) {
 		      var fieldhit=fieldhits[i];
-		      if (!fieldhit || !fieldhit.length) continue;
-		      var item=txtid[txtid_invert[i]-1];
+		      var item=fields[i];
+
+		      //all depth less than prevdepth will considered in range.
 		      if (filterfunc(item,regex)) {
+		      	inrange=true;
+		      	if (prevdepth>fieldsdepth) {
+		      		prevdepth=fieldsdepth[i];
+		      	}
+		      } else if (inrange) {
+		      	if (fieldsdepth[i]==prevdepth) {//turn off inrange
+		      		inrange=false;
+		      		prevdepth=65535;
+		      	}
+		      }
+
+		      if (!fieldhit || !fieldhit.length) continue;
+		      if (inrange) {
 		      	matches.push(item);
 		      	hits.push(fieldhit);
+		      	vpos.push(fieldhit[0]);
 		      }
 		    }		
-				cb(0,matches,hits);
-			});
-		}
+				cb(0,matches,hits,vpos);
+			};
+		});
 	});
 }
 
@@ -316,11 +336,34 @@ var renderHits=function(text,hits,func){
   return out;
 }  
 
+var get=function(dbname,key,cb) { //low level get
+	var db=kde.open(dbname,function(err,db){
+		if (err) {
+			cb(err);
+		} else {
+			db.get(key,cb);
+		}
+	});
+}
+var vpos2txtid=function(dbname,vpos,cb){
+	var db=kde.open(dbname,function(err,db){
+		if (err) cb(err);
+		else cb(0,db.vpos2txtid(vpos));
+	});
+}
+var txtid2vpos=function(dbname,txtid,cb){
+	var db=kde.open(dbname,function(err,db){
+		if (err) cb(err);
+		else cb(0,db.txtid2vpos(txtid));
+	});
+}
 var API={
 	next:next,
 	prev:prev,
 	nextUti:nextUti,
-	prevUti:prevUti,	
+	prevUti:prevUti,
+	vpos2txtid:vpos2txtid,
+	txtid2vpos:txtid2vpos,	
 	toc:toc,
 	fetch:fetch,
 	excerpt:excerpt,
@@ -329,6 +372,7 @@ var API={
 	listkdb:listkdb,
 	fillHits:fillHits,
 	renderHits:renderHits,
-	tryOpen:tryOpen
+	tryOpen:tryOpen,
+	get:get
 }
 module.exports=API;
