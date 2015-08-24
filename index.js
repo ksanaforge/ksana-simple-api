@@ -215,7 +215,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,cb) {
 		      //all depth less than prevdepth will considered in range.
 		      if (filterfunc(item,regex)) {
 		      	inrange=true;
-		      	if (prevdepth>fieldsdepth) {
+		      	if (prevdepth>fieldsdepth[i]) {
 		      		prevdepth=fieldsdepth[i];
 		      	}
 		      } else if (inrange) {
