@@ -58,7 +58,7 @@ var toc=function(opts,cb,context) {
 		if (err) {
 			cb(err);
 		} else {
-			var tocname=opts.tocname||res.engine.get("meta").tocs[0];
+			var tocname=opts.tocname||res.engine.get("meta").toc;
 			res.engine.getTOC({tocname:tocname},function(data){
 				cb(0,{name:tocname,toc:data,hits:res.rawresult,tocname:tocname});
 			});
