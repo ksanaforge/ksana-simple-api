@@ -1,6 +1,6 @@
 {
   "name": "ksana-simple-api",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Simplified API for building accelon-like data",
   "main": "index.js",
   "directories": {

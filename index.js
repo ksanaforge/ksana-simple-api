@@ -55,14 +55,11 @@ var prev=function(opts,cb,context) {
 var toc=function(opts,cb,context) {
 	var that=this;
 	kse.search(opts.db,opts.q,{},function(err,res){
-		if (err) {
-			cb(err);
-		} else {
-			var tocname=opts.tocname||res.engine.get("meta").toc;
-			res.engine.getTOC({tocname:tocname},function(data){
-				cb(0,{name:tocname,toc:data,hits:res.rawresult,tocname:tocname});
-			});
-		}
+		if (!res) throw "cannot open database "+opts.db;
+		var tocname=opts.tocname||res.engine.get("meta").toc;
+		res.engine.getTOC({tocname:tocname},function(data){
+			cb(0,{name:tocname,toc:data,hits:res.rawresult,tocname:tocname});
+		});
 	});
 }
 
