@@ -190,9 +190,9 @@ var filterField=function(items,regex,filterfunc) {
 	return out;
 }
 
-var groupByField=function(db,rawresult,field,regex,filterfunc,cb) {
+var groupByField=function(db,searchres,field,regex,filterfunc,cb) {
 	db.get(["fields",field],function(fields){
-
+		var rawresult=searchres.rawresult;
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
 			var fieldsvpos=res[0],fieldsdepth=res[1];
 			if (!rawresult||!rawresult.length) {
@@ -235,12 +235,17 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,cb) {
 	});
 }
 
-var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
+var groupByTxtid=function(db,searchresult,regex,filterfunc,cb) {
+	var rawresult=searchresult.rawresult;
 	if (!rawresult||!rawresult.length) {
 		//no q , filter all field
+		if (searchresult.query) {
+			cb(0,[]);
+		} else {
 			var values=db.get("segnames");
 			var matches=filterField(values,regex,filterfunc);
 			cb(0,matches);
+		}
 	} else {
 		var segoffsets=db.get("segoffsets");
     var seghits= plist.groupbyposting2(rawresult, segoffsets); 
@@ -270,9 +275,9 @@ var filter=function(opts,cb) {
 		var db=res.engine;
 		filterfunc=opts.filterfunc||null;
 		if (opts.field) {
-			groupByField(db,res.rawresult,opts.field,opts.regex,filterfunc,cb);
+			groupByField(db,res,opts.field,opts.regex,filterfunc,cb);
 		} else {
-			groupByTxtid(db,res.rawresult,opts.regex,filterfunc,cb);
+			groupByTxtid(db,res,opts.regex,filterfunc,cb);
 		}
 	});
 }
