@@ -82,44 +82,59 @@ var hits2markup=function( Q,file,seg, text){
 	var hits=kse.excerpt.realHitInRange(Q,vpos,vpos2,text);
 	return hits;
 }
+
+var fetch_res=function(engine,Q,opts,cb){
+	var uti=opts.uti;
+		if (!uti) {
+			uti=[];
+			var vpos=opts.vpos;
+			if (typeof vpos!="object") vpos=[vpos];
+			for (var i=0;i<vpos.length;i++) {
+				var u=engine.vpos2txtid(vpos[i]);
+				uti.push(u);
+			}
+		}
+		if (typeof uti!=="object") uti=[uti];
+		var keys=txtids2key.call(engine,uti);
+		if (typeof keys[0][1]=="undefined") {
+			cb("uti not found: "+uti+" in "+opts.db);
+			return;
+		}
+
+		engine.get(keys,function(data){
+			var out=[];
+			for (var i=0;i<keys.length;i++) {
+				var hits=null;
+				if (Q) hits=hits2markup.call(engine,Q,keys[i][1],keys[i][2],data[i]);
+				var vpos=engine.txtid2vpos(uti[i]);
+				out.push({uti:uti[i],text:data[i],hits:hits,vpos:vpos});
+			}
+			cb(0,out);
+		});
+}
 var fetch=function(opts,cb,context) {
 	var that=this;
 	if (!opts.uti && !opts.vpos) {
 		cb("missing uti or vpos");
 		return;
 	}
-	kse.search(opts.db,opts.q,{},function(err,res){
-		if (err) {
-			cb(err);
-		} else {
-			var uti=opts.uti;
-			if (!uti) {
-				uti=[];
-				var vpos=opts.vpos;
-				if (typeof vpos!="object") vpos=[vpos];
-				for (var i=0;i<vpos.length;i++) {
-					var u=res.engine.vpos2txtid(vpos[i]);
-					uti.push(u);
+	if (!opts.q) {
+			kde.open(opts.db,function(err,db){
+				if (err) {
+					cb(err)
+				} else {
+					fetch_res(db,null,opts,cb);
 				}
-			}
-			if (typeof uti!=="object") uti=[uti];
-			var keys=txtids2key.call(res.engine,uti);
-			if (typeof keys[0][1]=="undefined") {
-				cb("uti not found: "+uti+" in "+opts.db);
-				return;
-			}
-
-			res.engine.get(keys,function(data){
-				var out=[];
-				for (var i=0;i<keys.length;i++) {
-					var hits=hits2markup.call(res.engine,res,keys[i][1],keys[i][2],data[i]);
-					var vpos=res.engine.txtid2vpos(uti[i]);
-					out.push({uti:uti[i],text:data[i],hits:hits,vpos:vpos});
-				}
-				cb(0,out);
 			});
-		}
-	});	
+	} else {
+		kse.search(opts.db,opts.q,{},function(err,res){
+			if (err) {
+				cb(err);
+			} else {
+				fetch_res(res.engine,res,opts,cb)
+			}
+		});		
+	}
 }
 
 var excerpt2defaultoutput=function(excerpt) {
