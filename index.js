@@ -24,29 +24,35 @@ var prevUti=function(opts,cb){
 	});		
 }
 
-var _iterate=function(funcname,opts,cb,context) {
-	kse.search(opts.db,opts.q,function(err,res){
-		var db=res.engine;
-		if (err) {
-			cb(err);
-			return;
-		}
-		var out=[];
-		var next=opts.uti;
-		var count=opts.count||10;
-		var func=db[funcname];
-		for (var i=0;i<count;i++) {
-			next=func.call(db,next);
-			if (!next) break;
+var __iterate=function(db,funcname,opts,cb,context){
+	var out=[];
+	var next=opts.uti;
+	var count=opts.count||10;
+	var func=db[funcname];
+	for (var i=0;i<count;i++) {
+		next=func.call(db,next);
+		if (!next) break;
 
-			if (funcname==="nextTxtid") {
-				out.push(next);
-			} else {
-				out.unshift(next);
-			}
+		if (funcname==="nextTxtid") {
+			out.push(next);
+		} else {
+			out.unshift(next);
 		}
-		opts.uti=out;
-		fetch(opts,cb,context);
+	}
+	opts.uti=out;
+	fetch(opts,cb,context);
+}
+var _iterate=function(funcname,opts,cb,context) {
+	if (!opts.q) {
+		kde.open(opts.db,function(err,db){
+			if (!err) __iterate(db,funcname,opts,cb,context);
+			else console.error(err);
+		});
+		return;
+	}
+	kse.search(opts.db,opts.q,function(err,res){
+		if (!err) __iterate(res.engine,funcname,opts,cb,context);
+		else console.error(err);
 	});
 }
 
@@ -59,6 +65,17 @@ var prev=function(opts,cb,context) {
 
 var toc=function(opts,cb,context) {
 	var that=this;
+	
+	if (!opts.q) {
+		kde.open(opts.db,function(err,db){
+			var tocname=opts.tocname||db.get("meta").toc;
+			db.getTOC({tocname:tocname},function(data){
+				cb(0,{name:tocname,toc:data,tocname:tocname});
+			});
+		});
+		return;
+	}
+
 	kse.search(opts.db,opts.q,{},function(err,res){
 		if (!res) throw "cannot open database "+opts.db;
 		var tocname=opts.tocname||res.engine.get("meta").toc;
@@ -379,6 +396,60 @@ var txtid2vpos=function(dbname,txtid,cb){
 		else cb(0,db.txtid2vpos(txtid));
 	});
 }
+
+var bsearchVposInToc = function (toc, obj, near) { 
+  var low = 0,
+  high = toc.length;
+  while (low < high) {
+    var mid = (low + high) >> 1;
+    if (toc[mid].vpos==obj) return mid-1;
+    toc[mid].vpos < obj ? low = mid + 1 : high = mid;
+  }
+  if (near) return low-1;
+  else if (toc[low].vpos==obj) return low;else return -1;
+};
+//from ksana2015-stackto
+var enumAncestors=function(toc,cur) {
+    if (!toc || !toc.length) return;
+    if (cur==0) return [];
+    var n=cur-1;
+    var depth=toc[cur].d - 1;
+    var parents=[];
+    while (n>=0 && depth>0) {
+      if (toc[n].d==depth) {
+        parents.unshift(n);
+        depth--;
+      }
+      n--;
+    }
+    parents.unshift(0); //first ancestor is root node
+    return parents;
+}
+
+var breadcrumb=function(opts,cb,context) {
+	kde.open(opts.db,function(err,db){
+
+		var vpos=opts.vpos;
+		if (opts.uti && typeof vpos==="undefined") {
+			vpos=db.txtid2vpos(opts.uti);
+		}
+
+		if (!vpos) {
+			cb("must have uti or vpos");
+			return;
+		}
+
+		var tocname=opts.tocname||db.get("meta").toc;
+		db.getTOC({tocname:tocname},function(toc){
+			var p=bsearchVposInToc(toc,vpos,true);
+			var nodes=enumAncestors(toc,p);
+			nodes.push(p);
+			var breadcrumb=nodes.map(function(n){return toc[n]});
+			cb(0,{ nodes: nodes, breadcrumb:breadcrumb});
+		});
+	});
+}
+
 var API={
 	next:next,
 	prev:prev,
@@ -395,6 +466,7 @@ var API={
 	fillHits:fillHits,
 	renderHits:renderHits,
 	tryOpen:tryOpen,
-	get:get
+	get:get,
+	breadcrumb:breadcrumb
 }
 module.exports=API;
