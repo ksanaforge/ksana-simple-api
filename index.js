@@ -118,7 +118,7 @@ var fetch_res=function(engine,Q,opts,cb){
 		}
 		if (typeof uti!=="object") uti=[uti];
 		var keys=txtids2key.call(engine,uti);
-		if (typeof keys[0][1]=="undefined") {
+		if (!keys || !keys.length || typeof keys[0][1]=="undefined") {
 			cb("uti not found: "+uti+" in "+opts.db);
 			return;
 		}
