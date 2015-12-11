@@ -36,9 +36,14 @@ var _iterate=function(funcname,opts,cb,context) {
 		var count=opts.count||10;
 		var func=db[funcname];
 		for (var i=0;i<count;i++) {
-			var next=func(next);
+			next=func.call(db,next);
 			if (!next) break;
-			out.push(next);
+
+			if (funcname==="nextTxtid") {
+				out.push(next);
+			} else {
+				out.unshift(next);
+			}
 		}
 		opts.uti=out;
 		fetch(opts,cb,context);
