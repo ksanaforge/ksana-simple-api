@@ -445,7 +445,7 @@ var breadcrumb=function(opts,cb,context) {
 			var nodes=enumAncestors(toc,p);
 			nodes.push(p);
 			var breadcrumb=nodes.map(function(n){return toc[n]});
-			cb(0,{ nodes: nodes, breadcrumb:breadcrumb});
+			cb(0,{ nodes: nodes, breadcrumb:breadcrumb, toc:toc});
 		});
 	});
 }
