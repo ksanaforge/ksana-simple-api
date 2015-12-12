@@ -92,7 +92,8 @@ var txtids2key=function(txtids) {
 	var out=[];
 	for (var i=0;i<txtids.length;i++) {
 		var fseg=this.txtid2fileSeg(txtids[i]);
-		out.push(["filecontents",fseg.file,fseg.seg]);
+		if (!fseg) out.push(["filecontents",0,0]);
+		else out.push(["filecontents",fseg.file,fseg.seg]);
 	}
 	return out;
 }
@@ -117,6 +118,7 @@ var fetch_res=function(engine,Q,opts,cb){
 			}
 		}
 		if (typeof uti!=="object") uti=[uti];
+
 		var keys=txtids2key.call(engine,uti);
 		if (!keys || !keys.length || typeof keys[0][1]=="undefined") {
 			cb("uti not found: "+uti+" in "+opts.db);
