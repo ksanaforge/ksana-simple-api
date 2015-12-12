@@ -233,14 +233,17 @@ var groupByField=function(db,searchres,field,regex,filterfunc,cb) {
 	db.get(["fields",field],function(fields){
 		var rawresult=searchres.rawresult;
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
-			var fieldsvpos=res[0],fieldsdepth=res[1];
+			var items=[], fieldsvpos=res[0],fieldsdepth=res[1];
 			if (!rawresult||!rawresult.length) {
 				var matches=filterField(fields,regex,filterfunc);
-				cb(0,matches,null,fieldsvpos);
+				items=matches.map(function(item,idx){
+					return {text:item, uti: db.vpos2txtid(fieldsvpos[idx]), vpos:fieldsvpos[idx]};
+				})
+				cb(0,items);
 			} else {
 				var fieldhits= plist.groupbyposting2(rawresult, fieldsvpos);
 				fieldhits.shift();
-		    var matches=[],hits=[],vpos=[];
+		    var out=[];
 		    var reg=new RegExp(regex);
 		    filterfunc=filterfunc|| reg.test.bind(reg);
 		    var prevdepth=65535,inrange=false;
@@ -263,12 +266,10 @@ var groupByField=function(db,searchres,field,regex,filterfunc,cb) {
 
 		      if (!fieldhit || !fieldhit.length) continue;
 		      if (inrange) {
-		      	matches.push(item);
-		      	hits.push(fieldhit);
-		      	vpos.push(fieldhit[0]);
+		      	items.push({text: item, vpos: fieldhit[0], uti:db.vpos2txtid(fieldhit[0]) , hits:fieldhit});
 		      }
 		    }		
-				cb(0,matches,hits,vpos);
+				cb(0,items);
 			};
 		});
 	});
@@ -282,26 +283,31 @@ var groupByTxtid=function(db,searchresult,regex,filterfunc,cb) {
 			cb(0,[]);
 		} else {
 			var values=db.get("segnames");
+			var segoffsets=db.get("segoffsets");
 			var matches=filterField(values,regex,filterfunc);
-			cb(0,matches);
+
+			items=matches.map(function(item,idx){
+				return {text:item, uti:item, vpos:db.txtid2vpos(item)};
+			})
+			cb(0,items);
 		}
 	} else {
 		var segoffsets=db.get("segoffsets");
     var seghits= plist.groupbyposting2(rawresult, segoffsets); 
     var txtid=db.get("segnames");
-    var matches=[],hits=[];
+    var out=[];
     var reg=new RegExp(regex);
 		 filterfunc=filterfunc|| reg.test.bind(reg);
     for (var i=0;i<seghits.length;i++) {
       var seghit=seghits[i];
       if (!seghit || !seghit.length) continue;
       var item=txtid[i-1];
+      var vpos=segoffsets[i-1];
 		  if (filterfunc(item,regex)) {
-      	matches.push(item);
-      	hits.push(seghit);
+		  	out.push({text:item,uti:item,hits:seghit,vpos:vpos});
       }
     }
-    cb(0,matches,hits);
+    cb(0,out);
 	}
 }
 
