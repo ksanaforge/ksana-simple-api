@@ -63,12 +63,18 @@ var prev=function(opts,cb,context) {
 	_iterate("prevTxtid",opts,cb,context);
 }
 
+var _clearHits=function(toc){
+	for (var i=0;i<toc.length;i++) {
+		//remove the field, make sure treenodehits will calculate new value.
+		if (typeof toc[i].hit!=="undefined") delete toc[i].hit;
+	}
+}
 var toc=function(opts,cb,context) {
 	var that=this;
 	
 	if (!opts.q) {
 		kde.open(opts.db,function(err,db){
-			var tocname=opts.tocname||db.get("meta").toc;
+			var tocname=opts.name||opts.tocname||db.get("meta").toc;
 			db.getTOC({tocname:tocname},function(data){
 				cb(0,{name:tocname,toc:data,tocname:tocname});
 			});
@@ -78,8 +84,9 @@ var toc=function(opts,cb,context) {
 
 	kse.search(opts.db,opts.q,{},function(err,res){
 		if (!res) throw "cannot open database "+opts.db;
-		var tocname=opts.tocname||res.engine.get("meta").toc;
+		var tocname=opts.name||opts.tocname||res.engine.get("meta").toc;
 		res.engine.getTOC({tocname:tocname},function(data){
+			_clearHits(data);
 			cb(0,{name:tocname,toc:data,hits:res.rawresult,tocname:tocname});
 		});
 	});
@@ -174,11 +181,17 @@ var excerpt2defaultoutput=function(excerpt) {
 //use startfrom to specifiy starting posting
 var excerpt=function(opts,cb,context) {
 	var that=this;
+	var from=opts.from;
 	if (!opts.q) {
 		cb("missing q");
 		return;
 	}
-	kse.search(opts.db,opts.q,{nohighlight:true,range:{from:opts.from}},
+
+	var range={};
+	if (opts.from) range.from=opts.from;
+	if (opts.count) range.maxseg=opts.count;
+
+	kse.search(opts.db,opts.q,{nohighlight:true,range:range},
 		function(err,res){
 		if (err) {
 			cb(err);
@@ -447,7 +460,7 @@ var breadcrumb=function(opts,cb,context) {
 			return;
 		}
 
-		var tocname=opts.tocname||db.get("meta").toc;
+		var tocname=opts.name||opts.tocname||db.get("meta").toc;
 		db.getTOC({tocname:tocname},function(toc){
 			var p=bsearchVposInToc(toc,vpos,true);
 			var nodes=enumAncestors(toc,p);
@@ -457,7 +470,30 @@ var breadcrumb=function(opts,cb,context) {
 		});
 	});
 }
+var sibling=function(opts,cb,context) {
+	var uti=opts.uti;
 
+	kde.open(opts.db,function(err,db){
+		if (typeof opts.vpos !=="undefined" && typeof opts.uti==="undefined") {
+			uti=db.vpos2txtid(opts.vpos);
+		}
+
+		var keys=txtids2key.call(db,uti);
+		
+		if (!keys) {
+			cb("invalid uti: "+uti);
+			return;
+		}
+		var segs=db.getFileSegNames(keys[0][1]);
+		if (!segs) {
+			cb("invalid file id: "+keys[0][1]);
+			return;			
+		}
+		var idx=segs.indexOf(uti);
+		cb(0,{sibling:segs,idx:idx});
+	})
+
+}
 var API={
 	next:next,
 	prev:prev,
@@ -467,6 +503,7 @@ var API={
 	txtid2vpos:txtid2vpos,	
 	toc:toc,
 	fetch:fetch,
+	sibling:sibling,
 	excerpt:excerpt,
 	scan:scan,
 	filter:filter,
@@ -475,6 +512,7 @@ var API={
 	renderHits:renderHits,
 	tryOpen:tryOpen,
 	get:get,
-	breadcrumb:breadcrumb
+	breadcrumb:breadcrumb,
+	treenodehits:require("./treenodehits")
 }
 module.exports=API;
