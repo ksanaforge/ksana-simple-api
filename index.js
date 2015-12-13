@@ -8,7 +8,7 @@ var kse=require("ksana-search");
 var plist=require("ksana-search/plist");
 var kde=require("ksana-database");
 var bsearch=kde.bsearch;
-
+var treenodehits=require("./treenodehits");
 //make sure db is opened
 var nextUti=function(opts,cb){
 	kde.open(opts.db,function(err,db){
@@ -69,14 +69,31 @@ var _clearHits=function(toc){
 		if (typeof toc[i].hit!=="undefined") delete toc[i].hit;
 	}
 }
+
+var breadcrumb=function(db,opts,toc,tocname){
+	var vpos=opts.vpos;
+	if (opts.uti && typeof vpos==="undefined") {
+			vpos=db.txtid2vpos(opts.uti);
+	}
+
+	var p=bsearchVposInToc(toc,vpos,true);
+	var nodeseq=enumAncestors(toc,p);
+	nodeseq.push(p);
+	var breadcrumb=nodeseq.map(function(n){return toc[n]});
+	return { name:tocname,tocname:tocname,nodeseq: nodeseq, breadcrumb:breadcrumb, toc:toc};
+}
 var toc=function(opts,cb,context) {
 	var that=this;
 	
 	if (!opts.q) {
 		kde.open(opts.db,function(err,db){
 			var tocname=opts.name||opts.tocname||db.get("meta").toc;
-			db.getTOC({tocname:tocname},function(data){
-				cb(0,{name:tocname,toc:data,tocname:tocname});
+			db.getTOC({tocname:tocname},function(toc){
+				if (opts.vpos||opts.uti) {
+					cb(0,breadcrumb(db,opts,toc,tocname));
+				} else {
+					cb(0,{name:tocname,toc:toc,tocname:tocname});	
+				}
 			});
 		});
 		return;
@@ -85,9 +102,20 @@ var toc=function(opts,cb,context) {
 	kse.search(opts.db,opts.q,{},function(err,res){
 		if (!res) throw "cannot open database "+opts.db;
 		var tocname=opts.name||opts.tocname||res.engine.get("meta").toc;
-		res.engine.getTOC({tocname:tocname},function(data){
-			_clearHits(data);
-			cb(0,{name:tocname,toc:data,hits:res.rawresult,tocname:tocname});
+		var db=res.engine;
+		res.engine.getTOC({tocname:tocname},function(toc){
+			_clearHits(toc);
+			if (opts.vpos||opts.uti) {
+					var out=breadcrumb(db,opts,toc,tocname);
+					console.log(out.nodeseq)
+					out.nodeseq.map(function(seq){
+						//console.log(seq)
+						treenodehits(toc,res.rawresult,seq);
+					})
+					cb(0,out);
+			} else {
+				cb(0,{name:tocname,toc:toc,hits:res.rawresult,tocname:tocname});	
+			}
 		});
 	});
 }
@@ -446,7 +474,7 @@ var enumAncestors=function(toc,cur) {
     parents.unshift(0); //first ancestor is root node
     return parents;
 }
-
+/*
 var breadcrumb=function(opts,cb,context) {
 	kde.open(opts.db,function(err,db){
 
@@ -470,6 +498,7 @@ var breadcrumb=function(opts,cb,context) {
 		});
 	});
 }
+*/
 var sibling=function(opts,cb,context) {
 	var uti=opts.uti;
 
@@ -512,7 +541,6 @@ var API={
 	renderHits:renderHits,
 	tryOpen:tryOpen,
 	get:get,
-	breadcrumb:breadcrumb,
-	treenodehits:require("./treenodehits")
+	treenodehits:treenodehits
 }
 module.exports=API;
