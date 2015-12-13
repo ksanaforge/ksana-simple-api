@@ -174,7 +174,7 @@ var excerpt2defaultoutput=function(excerpt) {
 		var ex=excerpt[i];
 		var vpos=this.fileSegToVpos(ex.file,ex.seg);
 		var txtid=this.vpos2txtid(vpos);
-		out.push({uti:txtid,text:ex.text,hits:ex.realHits});
+		out.push({uti:txtid,text:ex.text,hits:ex.realHits,vpos:vpos});
 	}
 	return out;
 }
