@@ -50,7 +50,7 @@ var _iterate=function(funcname,opts,cb,context) {
 		});
 		return;
 	}
-	kse.search(opts.db,opts.q,function(err,res){
+	kse.search(opts.db,opts.q,opts,function(err,res){
 		if (!err) __iterate(res.engine,funcname,opts,cb,context);
 		else console.error(err);
 	});
@@ -99,7 +99,7 @@ var toc=function(opts,cb,context) {
 		return;
 	}
 
-	kse.search(opts.db,opts.q,{},function(err,res){
+	kse.search(opts.db,opts.q,opts,function(err,res){
 		if (!res) throw "cannot open database "+opts.db;
 		var tocname=opts.name||opts.tocname||res.engine.get("meta").toc;
 		var db=res.engine;
@@ -186,7 +186,7 @@ var fetch=function(opts,cb,context) {
 				}
 			});
 	} else {
-		kse.search(opts.db,opts.q,{},function(err,res){
+		kse.search(opts.db,opts.q,opts,function(err,res){
 			if (err) {
 				cb(err);
 			} else {
@@ -215,11 +215,16 @@ var excerpt=function(opts,cb,context) {
 		return;
 	}
 
-	var range={};
+	var range={},newopts={};
 	if (opts.from) range.from=opts.from;
 	if (opts.count) range.maxseg=opts.count;
+	for (var i in opts) {
+		newopts[i]=opts[i];
+	}
+	newopts.nohighlight=true;
+	newopts.range=range;
 
-	kse.search(opts.db,opts.q,{nohighlight:true,range:range},
+	kse.search(opts.db,opts.q,newopts,
 		function(err,res){
 		if (err) {
 			cb(err);
@@ -240,7 +245,7 @@ var beginWith=function(s,txtids) {
 	return out;
 }
 var scan=function(opts,cb,context) {
-	kse.search(opts.db,opts.q,{},function(err,res){
+	kse.search(opts.db,opts.q,opts,function(err,res){
 		if (err) {
 			cb(err);
 			return;
@@ -371,7 +376,7 @@ var filter=function(opts,cb) {
 			_group(db,opts,{rawresult:null},cb);
 		})
 	} else {
-		kse.search(opts.db,opts.q,{},function(err,res){
+		kse.search(opts.db,opts.q,opts,function(err,res){
 			_group(res.engine,opts,res,cb);
 		});
 	}
