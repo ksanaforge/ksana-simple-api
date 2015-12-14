@@ -257,14 +257,14 @@ var scan=function(opts,cb,context) {
 }
 
 var filterField=function(items,regex,filterfunc) {
-	if (!regex) return items;
+	if (!regex) return [];
 	var reg=new RegExp(regex);
 	var out=[];
 	filterfunc=filterfunc|| reg.test.bind(reg);
 	for (var i=0;i<items.length;i++) {
 		var item=items[i];
 		if (filterfunc(item,regex)) {
-			out.push(item);
+			out.push({text:item,idx:i});
 		}
 	}
 	return out;
@@ -277,9 +277,10 @@ var groupByField=function(db,searchres,field,regex,filterfunc,cb) {
 			var items=[], fieldsvpos=res[0],fieldsdepth=res[1];
 			if (!rawresult||!rawresult.length) {
 				var matches=filterField(fields,regex,filterfunc);
-				items=matches.map(function(item,idx){
-					return {text:item, uti: db.vpos2txtid(fieldsvpos[idx]), vpos:fieldsvpos[idx]};
-				})
+				for (var i=0;i<matches.length;i++) {
+					var item=matches[i];
+					items.push({text:item.text, uti: db.vpos2txtid(fieldsvpos[item.idx]), vpos:fieldsvpos[item.idx]});
+				}
 				cb(0,items);
 			} else {
 				var fieldhits= plist.groupbyposting2(rawresult, fieldsvpos);
@@ -327,8 +328,8 @@ var groupByTxtid=function(db,searchresult,regex,filterfunc,cb) {
 			var segoffsets=db.get("segoffsets");
 			var matches=filterField(values,regex,filterfunc);
 
-			items=matches.map(function(item,idx){
-				return {text:item, uti:item, vpos:db.txtid2vpos(item)};
+			items=matches.map(function(item){
+				return {text:item.text, uti:item.text, vpos:segoffsets[item.idx]};
 			})
 			cb(0,items);
 		}
@@ -352,20 +353,28 @@ var groupByTxtid=function(db,searchresult,regex,filterfunc,cb) {
 	}
 }
 
-var filter=function(opts,cb) {
-	kse.search(opts.db,opts.q,{},function(err,res){
-		if (err) {
-			cb(err);
-			return;
-		}
-		var db=res.engine;
+var _group=function(db,opts,res,cb){
 		filterfunc=opts.filterfunc||null;
 		if (opts.field) {
 			groupByField(db,res,opts.field,opts.regex,filterfunc,cb);
 		} else {
 			groupByTxtid(db,res,opts.regex,filterfunc,cb);
 		}
-	});
+}
+var filter=function(opts,cb) {
+	if (!opts.q){
+		if (!opts.regex) {
+			cb(0,[]);
+			return;
+		}
+		kde.open(opts.db,function(err,db){
+			_group(db,opts,{rawresult:null},cb);
+		})
+	} else {
+		kse.search(opts.db,opts.q,{},function(err,res){
+			_group(res.engine,opts,res,cb);
+		});
+	}
 }
 var listkdb=kde.listkdb;
 
