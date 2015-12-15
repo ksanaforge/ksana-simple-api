@@ -75,12 +75,19 @@ var breadcrumb=function(db,opts,toc,tocname){
 	if (opts.uti && typeof vpos==="undefined") {
 			vpos=db.txtid2vpos(opts.uti);
 	}
-
 	var p=bsearchVposInToc(toc,vpos,true);
+	if (p==-1) return {};
 	var nodeseq=enumAncestors(toc,p);
 	nodeseq.push(p);
 	var breadcrumb=nodeseq.map(function(n){return toc[n]});
-	return { name:tocname,tocname:tocname,nodeseq: nodeseq, breadcrumb:breadcrumb, toc:toc};
+	var out={ nodeseq: nodeseq, breadcrumb:breadcrumb};
+	if (tocname) {
+		out.name=tocname;
+		out.tocname=tocname; //legacy code
+		out.toc=toc;
+	}
+
+	return out;
 }
 var toc=function(opts,cb,context) {
 	var that=this;
@@ -141,34 +148,47 @@ var hits2markup=function( Q,file,seg, text){
 	return hits;
 }
 
-var fetch_res=function(engine,Q,opts,cb){
+var fetch_res=function(db,Q,opts,cb){
 	var uti=opts.uti;
 		if (!uti) {
 			uti=[];
 			var vpos=opts.vpos;
 			if (typeof vpos!="object") vpos=[vpos];
 			for (var i=0;i<vpos.length;i++) {
-				var u=engine.vpos2txtid(vpos[i]);
+				var u=db.vpos2txtid(vpos[i]);
 				uti.push(u);
 			}
 		}
 		if (typeof uti!=="object") uti=[uti];
 
-		var keys=txtids2key.call(engine,uti);
+		var keys=txtids2key.call(db,uti);
 		if (!keys || !keys.length || typeof keys[0][1]=="undefined") {
 			cb("uti not found: "+uti+" in "+opts.db);
 			return;
 		}
 
-		engine.get(keys,function(data){
-			var out=[];
-			for (var i=0;i<keys.length;i++) {
+		db.get(keys,function(data){
+			var out=[],i=0;
+			for (i=0;i<keys.length;i++) {
 				var hits=null;
-				if (Q) hits=hits2markup.call(engine,Q,keys[i][1],keys[i][2],data[i]);
-				var vpos=engine.txtid2vpos(uti[i]);
-				out.push({uti:uti[i],text:data[i],hits:hits,vpos:vpos});
+				if (Q) hits=hits2markup.call(db,Q,keys[i][1],keys[i][2],data[i]);
+				var vpos=db.txtid2vpos(uti[i]);
+				var item={uti:uti[i],text:data[i],hits:hits,vpos:vpos};
+				out.push(item);
 			}
-			cb(0,out);
+			if (typeof opts.breadcrumb!=="undefined") {
+				db.getTOC({tocname:opts.breadcrumb||db.get("meta").toc},function(toc){
+					for (i=0;i<out.length;i++) {
+						var oo=breadcrumb(db,{uti:out[i].uti},toc);
+						out[i].breadcrumb=oo.breadcrumb;
+						out[i].nodeseq=oo.nodeseq;
+					}
+					cb(0,out);
+				});
+			} else {
+				cb(0,out);
+			}
+			
 		});
 }
 var fetch=function(opts,cb,context) {
@@ -275,7 +295,7 @@ var filterField=function(items,regex,filterfunc) {
 	return out;
 }
 
-var groupByField=function(db,searchres,field,regex,filterfunc,cb) {
+var _groupByField=function(db,searchres,field,regex,filterfunc,postfunc,cb) {
 	db.get(["fields",field],function(fields){
 		var rawresult=searchres.rawresult;
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
@@ -313,7 +333,9 @@ var groupByField=function(db,searchres,field,regex,filterfunc,cb) {
 
 		      if (!fieldhit || !fieldhit.length) continue;
 		      if (inrange) {
-		      	items.push({text: item, vpos: fieldhit[0], uti:db.vpos2txtid(fieldhit[0]) , hits:fieldhit});
+		      	var item={text: item, vpos: fieldhit[0], uti:db.vpos2txtid(fieldhit[0]) , hits:fieldhit};
+		      	postfunc&&postfunc(item);
+		      	items.push(item);
 		      }
 		    }		
 				cb(0,items);
@@ -359,12 +381,13 @@ var groupByTxtid=function(db,searchresult,regex,filterfunc,cb) {
 }
 
 var _group=function(db,opts,res,cb){
-		filterfunc=opts.filterfunc||null;
-		if (opts.field) {
-			groupByField(db,res,opts.field,opts.regex,filterfunc,cb);
-		} else {
-			groupByTxtid(db,res,opts.regex,filterfunc,cb);
-		}
+	filterfunc=opts.filterfunc||null;
+
+	if (opts.field) {
+		_groupByField(db,res,opts.field,opts.regex,filterfunc,null,cb);
+	} else {
+		groupByTxtid(db,res,opts.regex,filterfunc,cb);
+	}
 }
 var filter=function(opts,cb) {
 	if (!opts.q){
