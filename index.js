@@ -76,11 +76,14 @@ var breadcrumb=function(db,opts,toc,tocname){
 			vpos=db.txtid2vpos(opts.uti);
 	}
 	var p=bsearchVposInToc(toc,vpos,true);
-	if (p==-1) return {};
-	var nodeseq=enumAncestors(toc,p);
-	nodeseq.push(p);
-	var breadcrumb=nodeseq.map(function(n){return toc[n]});
-	var out={ nodeseq: nodeseq, breadcrumb:breadcrumb};
+	if (p==-1) {
+		var out={nodeseq:[0],breadcrumb:[toc[0]]};
+	}  else {
+		var nodeseq=enumAncestors(toc,p);
+		nodeseq.push(p);
+		var breadcrumb=nodeseq.map(function(n){return toc[n]});
+		var out={ nodeseq: nodeseq, breadcrumb:breadcrumb};
+	}
 	if (tocname) {
 		out.name=tocname;
 		out.tocname=tocname; //legacy code
@@ -302,6 +305,7 @@ var _groupByField=function(db,searchres,field,regex,filterfunc,postfunc,cb) {
 			var items=[], fieldsvpos=res[0],fieldsdepth=res[1];
 			if (!rawresult||!rawresult.length) {
 				var matches=filterField(fields,regex,filterfunc);
+
 				for (var i=0;i<matches.length;i++) {
 					var item=matches[i];
 					items.push({text:item.text, uti: db.vpos2txtid(fieldsvpos[item.idx]), vpos:fieldsvpos[item.idx]});
@@ -494,48 +498,31 @@ var bsearchVposInToc = function (toc, obj, near) {
   if (near) return low-1;
   else if (toc[low].vpos==obj) return low;else return -1;
 };
-//from ksana2015-stackto
-var enumAncestors=function(toc,cur) {
-    if (!toc || !toc.length) return;
-    if (cur==0) return [];
-    var n=cur-1;
-    var depth=toc[cur].d - 1;
-    var parents=[];
-    while (n>=0 && depth>0) {
-      if (toc[n].d==depth) {
-        parents.unshift(n);
-        depth--;
-      }
-      n--;
-    }
-    parents.unshift(0); //first ancestor is root node
-    return parents;
-}
-/*
-var breadcrumb=function(opts,cb,context) {
-	kde.open(opts.db,function(err,db){
 
-		var vpos=opts.vpos;
-		if (opts.uti && typeof vpos==="undefined") {
-			vpos=db.txtid2vpos(opts.uti);
+var enumAncestors=function(toc,n) {
+	var parents=[0];
+	var cur=toc[n];
+	var depth=0, now=0;
+	while ( toc[now+1]&&toc[now+1].vpos<= cur.vpos ) {
+		now++;
+		var next=toc[now].n;
+		//jump to sibling which has closest vpos
+		while ((next && toc[next].vpos<=cur.vpos) || toc[now+1].d==toc[now].d) {
+			if (next) {
+				now=next;
+				next=toc[now].n;				
+			} else {e
+				next=now+1; //next row is sibling
+			}
 		}
-
-		if (!vpos) {
-			cb("must have uti or vpos");
-			return;
-		}
-
-		var tocname=opts.name||opts.tocname||db.get("meta").toc;
-		db.getTOC({tocname:tocname},function(toc){
-			var p=bsearchVposInToc(toc,vpos,true);
-			var nodes=enumAncestors(toc,p);
-			nodes.push(p);
-			var breadcrumb=nodes.map(function(n){return toc[n]});
-			cb(0,{ nodes: nodes, breadcrumb:breadcrumb, toc:toc});
-		});
-	});
+		if (toc[now].d>depth && toc[now].d<cur.d) {
+			parents.push(now);
+			depth=toc[now].d;
+		} else break;
+	}
+	return parents;
 }
-*/
+
 var sibling=function(opts,cb,context) {
 	var uti=opts.uti;
 
