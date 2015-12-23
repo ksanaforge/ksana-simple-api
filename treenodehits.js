@@ -31,11 +31,14 @@ var calculateHit=function(toc,hits,n) {
   if (n==0) {
     return hits.length;
   } else {
-    var hit=0;
+    var hitcount=0,firstvpos=start;
     for (var i=0;i<hits.length;i++) {
-      if (hits[i]>=start && hits[i]<end) hit++;
+      if (hits[i]>=start && hits[i]<end) {
+        if (hitcount==0) firstvpos=hits[i];
+       hitcount++;
+      }
     }
-    return hit;
+    return {hitcount:hitcount,firstvpos:firstvpos};
   }
 }
 
@@ -50,8 +53,10 @@ var treenodehits=function(toc,hits,n) {
   if (typeof toc[n].hit!=="undefined") return toc[n].hit;
 
   rangeOfTreeNode(toc,n);
-
-  return toc[n].hit=calculateHit(toc,hits,n);
+  var res=calculateHit(toc,hits,n);
+  toc[n].hit=res.hitcount;
+  toc[n].firstvpos=res.firstvpos;
+  return res.hitcount;
 }
 
 module.exports=treenodehits;

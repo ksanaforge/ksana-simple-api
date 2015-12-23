@@ -117,7 +117,6 @@ var toc=function(opts,cb,context) {
 			_clearHits(toc);
 			if (opts.vpos||opts.uti) {
 					var out=breadcrumb(db,opts,toc,tocname);
-					console.log(out.nodeseq)
 					out.nodeseq.map(function(seq){
 						//console.log(seq)
 						treenodehits(toc,res.rawresult,seq);
