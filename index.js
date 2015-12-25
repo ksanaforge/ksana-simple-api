@@ -174,8 +174,16 @@ var fetch_res=function(db,Q,opts,cb){
 			for (i=0;i<keys.length;i++) {
 				var hits=null;
 				if (Q) hits=hits2markup.call(db,Q,keys[i][1],keys[i][2],data[i]);
-				var vpos=db.txtid2vpos(uti[i]);
+				var vpos=db.txtid2vpos(uti[i])||null;
 				var item={uti:uti[i],text:data[i],hits:hits,vpos:vpos};
+				if (opts.fields) {
+					var fields=opts.fields;
+					if (typeof fields=="string") fields=[fields];
+					item.values=[];
+					for (var j=0;j<fields.length;j++) {
+						item.values.push(getFieldByVpos(db,fields[j],vpos));
+					}
+				}
 				out.push(item);
 			}
 			if (typeof opts.breadcrumb!=="undefined") {
@@ -199,12 +207,32 @@ var fetch=function(opts,cb,context) {
 		cb("missing uti or vpos");
 		return;
 	}
+	var fetchfields=function(db,cb1){
+		var fields=opts.fields;
+		if (typeof opts.fields=="string") {
+			fields=[opts.fields];
+		}
+
+		var fieldskey=[];
+		for (var i=0;i<fields.length;i++) {
+			fieldskey.push(["fields",fields[i]]);
+			fieldskey.push(["fields",fields[i]+"_vpos"]);
+		}
+		//console.log("fetching",fieldskey)
+		db.get(fieldskey,cb1);
+	}
 	if (!opts.q) {
 			kde.open(opts.db,function(err,db){
 				if (err) {
 					cb(err)
 				} else {
-					fetch_res(db,null,opts,cb);
+					if (opts.fields) {
+						fetchfields(db,function(){
+							fetch_res(db,null,opts,cb);		
+						});
+					} else {
+						fetch_res(db,null,opts,cb);	
+					}
 				}
 			});
 	} else {
@@ -212,7 +240,13 @@ var fetch=function(opts,cb,context) {
 			if (err) {
 				cb(err);
 			} else {
-				fetch_res(res.engine,res,opts,cb)
+					if (opts.fields) {
+						fetchfields(res.engine,function(){
+							fetch_res(res.engine,res,opts,cb)
+						});
+					} else {
+						fetch_res(res.engine,res,opts,cb)		
+					}
 			}
 		});		
 	}
@@ -297,9 +331,12 @@ var filterField=function(items,regex,filterfunc) {
 	return out;
 }
 
-var _groupByField=function(db,searchres,field,regex,filterfunc,postfunc,cb) {
+var _groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 	db.get(["fields",field],function(fields){
-		var rawresult=searchres.rawresult;
+		if (!fields) {
+			cb("field "+field+" not found");
+			return;
+		}
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
 			var items=[], fieldsvpos=res[0],fieldsdepth=res[1];
 			if (!rawresult||!rawresult.length) {
@@ -347,22 +384,18 @@ var _groupByField=function(db,searchres,field,regex,filterfunc,postfunc,cb) {
 	});
 }
 
-var groupByTxtid=function(db,searchresult,regex,filterfunc,cb) {
-	var rawresult=searchresult.rawresult;
+var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
 	if (!rawresult||!rawresult.length) {
 		//no q , filter all field
-		if (searchresult.query) {
-			cb(0,[]);
-		} else {
-			var values=db.get("segnames");
-			var segoffsets=db.get("segoffsets");
-			var matches=filterField(values,regex,filterfunc);
+		var values=db.get("segnames");
+		var segoffsets=db.get("segoffsets");
+		var matches=filterField(values,regex,filterfunc);
 
-			items=matches.map(function(item){
-				return {text:item.text, uti:item.text, vpos:segoffsets[item.idx]};
-			})
-			cb(0,items);
-		}
+		items=matches.map(function(item){
+			return {text:item.text, uti:item.text, vpos:segoffsets[item.idx]};
+		})
+		cb(0,items);
+
 	} else {
 		var segoffsets=db.get("segoffsets");
     var seghits= plist.groupbyposting2(rawresult, segoffsets); 
@@ -385,12 +418,33 @@ var groupByTxtid=function(db,searchresult,regex,filterfunc,cb) {
 
 var _group=function(db,opts,res,cb){
 	filterfunc=opts.filterfunc||null;
-
+	var rawresult=res.rawresult;
 	if (opts.field) {
-		_groupByField(db,res,opts.field,opts.regex,filterfunc,null,cb);
+		if (opts.ranges) rawresult=trimResult(rawresult,opts.ranges);
+		_groupByField(db,rawresult,opts.field,opts.regex,filterfunc,null,cb);
 	} else {
-		groupByTxtid(db,res,opts.regex,filterfunc,cb);
+		if ((!res.rawresult || !res.rawresult.length)&& res.query) {
+			cb(0,[]);//no search result
+		} else {
+			if (opts.ranges) rawresult=trimResult(rawresult,opts.ranges);
+			groupByTxtid(db,rawresult,opts.regex,filterfunc,cb);
+		}
 	}
+}
+var trimResult=function(rawresult,_ranges) {
+	//assume ranges not overlap
+	//TODO, combine continuous range
+	var res=[];
+	var ranges=JSON.parse(JSON.stringify(_ranges));
+	ranges.sort(function(a,b){return a[0]-b[0]});
+	for (var i=0;i<ranges.length;i++) {
+		var start=ranges[i][0],end=ranges[i][1];
+		var s=bsearch(rawresult,start,true);
+		var e=bsearch(rawresult,end,true);
+		var r=rawresult.slice(s,e);
+		res=res.concat(r);
+	}
+	return res;
 }
 var filter=function(opts,cb) {
 	if (!opts.q){
@@ -543,9 +597,60 @@ var sibling=function(opts,cb,context) {
 		}
 		var idx=segs.indexOf(uti);
 		cb(0,{sibling:segs,idx:idx});
-	})
-
+	});
 }
+var findField=function(array,item) {
+	for(var i=0;i<array.length;i++){
+		if (array[i]===item) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+var getFieldByVpos=function(db,field,vpos) {
+	//make sure field already in cache
+	var fieldvpos=db.get(["fields",field+"_vpos"]);
+	var fieldvalue=db.get(["fields",field]);
+	if (!fieldvpos || !fieldvalue)return null;
+
+	var i=bsearch(fieldvpos,vpos,true);
+	if (i>-1) return fieldvalue[i-1];
+}
+var getFieldRange=function(opts,cb,context){
+	var error=null;
+	if (!opts.field) error="missing field"
+	if (!opts.values && !opts.value) error="missing value"
+	if (!opts.db) error="missing db"
+	var values=opts.values;
+
+	if (opts.value && typeof opts.value=="string" && !opts.values){
+		values=[opts.value];
+	}
+	if (error) {
+		cb(error);
+		return;
+	}
+	get(opts.db,[["meta","vsize"],["fields",opts.field],["fields",opts.field+"_vpos"]],function(data){
+		if (!data) {
+			cb("error loading field "+opts.field);
+			return;
+		}
+		var vsize=data[0], fieldcaption=data[1], fieldvpos=data[2], out=[];
+		for (var i=0;i<values.length;i++) {
+			var v=values[i];
+			var p=findField(fieldcaption,v);
+			var start=vsize,end=vsize;
+			if (p>-1) start=fieldvpos[p];
+			if (p<fieldvpos.length-1) {
+				end=fieldvpos[p+1];
+			}
+			out.push([start,end]);
+		}
+		cb(0,out);
+	});
+}
+
 var API={
 	next:next,
 	prev:prev,
@@ -564,6 +669,7 @@ var API={
 	renderHits:renderHits,
 	tryOpen:tryOpen,
 	get:get,
-	treenodehits:treenodehits
+	treenodehits:treenodehits,
+	getFieldRange:getFieldRange
 }
 module.exports=API;
