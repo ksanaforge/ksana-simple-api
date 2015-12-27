@@ -564,7 +564,7 @@ var enumAncestors=function(toc,n) {
 			if (next) {
 				now=next;
 				next=toc[now].n;				
-			} else {e
+			} else {
 				next=now+1; //next row is sibling
 			}
 		}
