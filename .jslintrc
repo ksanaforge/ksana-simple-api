@@ -1,0 +1,11 @@
+{
+    "bitwise": true, 
+    "curly":false,
+    "laxcomma":true,
+    "node":true,
+    "browserify":true,
+    "browser":true,
+    "funcscope":true,
+    "maxerr":100,
+    "white":true
+}
