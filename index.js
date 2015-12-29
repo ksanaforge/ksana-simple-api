@@ -587,22 +587,22 @@ var get=function(dbname,key,cb) { //low level get
 	});
 };
 
-var vpos2txtid=function(dbname,vpos,cb){
-	kde.open(dbname,function(err,db){
+var vpos2uti=function(opts,cb){
+	kde.open(opts.db,function(err,db){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.vpos2txtid(vpos));
+			cb(0,db.vpos2txtid(opts.vpos));
 		}
 	});
 };
 
-var txtid2vpos=function(dbname,txtid,cb){
-	kde.open(dbname,function(err,db){
+var uti2vpos=function(opts,cb){
+	kde.open(opts.db,function(err,db){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.txtid2vpos(txtid));
+			cb(0,db.txtid2vpos(opts.uti));
 		}
 	});
 };
@@ -652,15 +652,15 @@ var getFieldRange=function(opts,cb){
 	if (!opts.field) {
 		error="missing field";
 	}
-	if (!opts.values && !opts.value) {
+	if (!opts.values) {
 		error="missing value";
 	}
 	if (!opts.db) {
 		error="missing db";
 	}
 
-	if (opts.value && typeof opts.value==="string" && !opts.values){
-		values=[opts.value];
+	if (typeof opts.values==="string"){
+		values=[opts.values];
 	}
 	if (error) {
 		cb(error);
@@ -744,8 +744,8 @@ var API={
 	prev:prev,
 	nextUti:nextUti,
 	prevUti:prevUti,
-	vpos2txtid:vpos2txtid,
-	txtid2vpos:txtid2vpos,	
+	vpos2uti:vpos2uti,
+	uti2vpos:uti2vpos,	
 	toc:toc,
 	fetch:fetch,
 	sibling:sibling,
