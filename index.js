@@ -225,7 +225,7 @@ var fetch_res=function(db,Q,opts,cb){
 			}
 			out.push(item);
 		}
-		if (opts.breadcrumb===undefined) {
+		if (opts.breadcrumb!==undefined) {
 			db.getTOC({tocname:opts.breadcrumb||db.get("meta").toc},function(toc){
 				var oo;
 				for (i=0;i<out.length;i+=1) {
