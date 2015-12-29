@@ -247,6 +247,7 @@ var fetchfields=function(opts,db,cb1){
 		fields=[opts.fields];
 	}
 
+
 	for (i=0;i<fields.length;i+=1) {
 		fieldskey.push(["fields",fields[i]]);
 		fieldskey.push(["fields",fields[i]+"_vpos"]);
@@ -281,7 +282,7 @@ var fetch=function(opts,cb) {
 				cb(err);
 			} else {
 					if (opts.fields) {
-						fetchfields(res.engine,function(){
+						fetchfields(opts,res.engine,function(){
 							fetch_res(res.engine,res,opts,cb);
 						});
 					} else {
