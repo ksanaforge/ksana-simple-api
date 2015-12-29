@@ -173,13 +173,6 @@ var txtids2key=function(txtids) {
 	return out;
 };
 
-var hits2markup=function( Q,file,seg, text){
-	var seg1=this.fileSegToAbsSeg(file,seg),
-		vpos=this.absSegToVpos(seg1),
-		vpos2=this.absSegToVpos(seg1+1),
-		hits=kse.excerpt.realHitInRange(Q,vpos,vpos2,text);
-	return hits;
-};
 
 var fetch_res=function(db,Q,opts,cb){
 	var i,u,keys,vpos,uti=opts.uti;
@@ -205,14 +198,17 @@ var fetch_res=function(db,Q,opts,cb){
 	}
 
 	db.get(keys,function(data){
-		var fields,vp,item,out=[],j,k,hits=null;
+		var fields,item,out=[],j,k,hits=null,seg1,vp,vp_end;
 		for (j=0;j<keys.length;j+=1) {
 			hits=null;
-			if (Q){
-				hits=hits2markup.call(db,Q,keys[j][1],keys[j][2],data[j]);
+			seg1=this.fileSegToAbsSeg(keys[j][1],keys[j][2]);
+			vp=this.absSegToVpos(seg1);
+			vp_end=this.absSegToVpos(seg1+1);
+			if (Q) {
+				hits=kse.excerpt.realHitInRange(Q,vp,vp_end,data[j]);
 			}
-			vp=db.txtid2vpos(uti[j])||null;
-			item={uti:uti[j],text:data[j],hits:hits,vpos:vp};
+
+			item={uti:uti[j],text:data[j],hits:hits,vpos:vp,vpos_end:vp_end};
 			if (opts.fields) {
 				fields=opts.fields;
 				if (typeof fields==="string") {
@@ -220,7 +216,7 @@ var fetch_res=function(db,Q,opts,cb){
 				}
 				item.values=[];
 				for (k=0;k<fields.length;k+=1) {
-					item.values.push(getFieldByVpos(db,fields[k],vp));
+					item.values.push(getFieldByVpos(db,fields[k],vpos));
 				}
 			}
 			out.push(item);
@@ -719,7 +715,7 @@ var iterate=function(funcname,opts,cb,context) {
 			else {
 				cb(err);
 			}
-		});
+		},context);
 		return;
 	}
 	kse.search(opts.db,opts.q,opts,function(err,res){
@@ -728,7 +724,13 @@ var iterate=function(funcname,opts,cb,context) {
 		} else {
 			cb(err);
 		}
-	});
+	},context);
+};
+
+var search=function(opts,cb,context){
+	kse.search(opts.db,opts.q,opts,function(err,res){
+		cb(err,res);
+	},context);
 };
 
 var next=function(opts,cb,context) {
@@ -758,6 +760,8 @@ var API={
 	tryOpen:tryOpen,
 	get:get,
 	treenodehits:treenodehits,
-	getFieldRange:getFieldRange
+	getFieldRange:getFieldRange,
+	search:search
+
 };
 module.exports=API;
