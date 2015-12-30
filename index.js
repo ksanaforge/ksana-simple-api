@@ -106,7 +106,7 @@ var breadcrumb=function(db,opts,toc,tocname){
 };
 var toc=function(opts,cb,context) {
 	if (!opts.q) {
-		kde.open(opts.db,function(err,db){
+		kde.open(opts.db, opts, function(err,db){
 			if (err) {
 				cb(err);
 			}
