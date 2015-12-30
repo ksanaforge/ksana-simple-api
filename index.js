@@ -201,9 +201,9 @@ var fetch_res=function(db,Q,opts,cb){
 		var fields,item,out=[],j,k,hits=null,seg1,vp,vp_end;
 		for (j=0;j<keys.length;j+=1) {
 			hits=null;
-			seg1=this.fileSegToAbsSeg(keys[j][1],keys[j][2]);
-			vp=this.absSegToVpos(seg1);
-			vp_end=this.absSegToVpos(seg1+1);
+			seg1=db.fileSegToAbsSeg(keys[j][1],keys[j][2]);
+			vp=db.absSegToVpos(seg1);
+			vp_end=db.absSegToVpos(seg1+1);
 			if (Q) {
 				hits=kse.excerpt.realHitInRange(Q,vp,vp_end,data[j]);
 			}
@@ -690,6 +690,7 @@ var getFieldRange=function(opts,cb){
 
 var iterateInner=function(db,funcname,opts,cb,context){
 	var out=[], next=opts.uti,  count=opts.count||10,  func=db[funcname], i;
+
 	for (i=0;i<count;i+=1) {
 		next=func.call(db,next);
 		if (!next) {
@@ -702,6 +703,7 @@ var iterateInner=function(db,funcname,opts,cb,context){
 			out.unshift(next);
 		}
 	}
+
 	opts.uti=out;
 	fetch(opts,cb,context);
 };
