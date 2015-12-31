@@ -393,9 +393,11 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 				cb(0,items);
 			} else {
 				fieldhits = plist.groupbyposting2(rawresult, fieldsvpos);
+
 				reg =new RegExp(regex);
 
 				fieldhits.shift();
+
 		    filterfunc=filterfunc|| reg.test.bind(reg);
 		    for (i=0;i<fieldhits.length;i+=1) {
 		      fieldhit=fieldhits[i];
@@ -549,11 +551,19 @@ var fillHits=function(searchable,tofind,cb) {
 };
 
 var tryOpen=function(kdbid,cb){
-	if ((window.location.protocol==="file:" && window.process===undefined) 
-	|| window.io===undefined ) {
-		cb("local file mode");
+	var nw=window.process!==undefined && window.process.__node_webkit;
+	var protocol=window.location.protocol;
+	var socketio= window.io!==undefined;
+
+	if ( (protocol==="http:" || protocol==="https:") && !socketio) {
+		cb("http+local file mode");
 		return;
 	}
+
+	if (protocol==="file:" && !nw) {
+		cb("local file mode");
+	}
+
 	kde.open(kdbid,function(err){
 		cb(err);
 	});
