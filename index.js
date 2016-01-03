@@ -481,11 +481,12 @@ var trimResult=function(rawresult,rs) {
 var groupInner=function(db,opts,res,cb){
 	var filterfunc=opts.filterfunc||null,
 	  rawresult=res.rawresult;
-	if (opts.field) {
+	var field=db.get("meta").toc || opts.field;	  
+	if (field) {
 		if (opts.ranges) {
 			rawresult=trimResult(rawresult,opts.ranges);
 		}
-		groupByField(db,rawresult,opts.field,opts.regex,filterfunc,null,cb);
+		groupByField(db,rawresult,field,opts.regex,filterfunc,null,cb);
 	} else {
 		if ((!res.rawresult || !res.rawresult.length)&& res.query) {
 			cb(0,[]);//no search result
