@@ -109,6 +109,7 @@ var toc=function(opts,cb,context) {
 		kde.open(opts.db,function(err,db){
 			if (err) {
 				cb(err);
+				return;
 			}
 			var tocname=opts.name||opts.tocname||db.get("meta").toc;
 			db.getTOC({tocname:tocname},function(toc){
