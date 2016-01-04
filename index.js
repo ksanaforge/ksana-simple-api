@@ -221,8 +221,10 @@ var fetch_res=function(db,Q,opts,cb){
 			}
 			out.push(item);
 		}
-		if (opts.breadcrumb!==undefined) {
-			db.getTOC({tocname:opts.breadcrumb||db.get("meta").toc},function(toc){
+		var tocname=opts.breadcrumb;
+		if (typeof tocname!="string") tocname=db.get("meta").toc;
+		if (tocname!==undefined) {
+			db.getTOC({tocname:tocname},function(toc){
 				var oo;
 				for (i=0;i<out.length;i+=1) {
 					oo=breadcrumb(db,{uti:out[i].uti},toc);
@@ -390,7 +392,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 					item=matches[i];
 					items.push({text:item.text, uti: db.vpos2txtid(fieldsvpos[item.idx]), vpos:fieldsvpos[item.idx]});
 				}
-				cb(0,items);
+				cb(0,items,db);
 			} else {
 				fieldhits = plist.groupbyposting2(rawresult, fieldsvpos);
 
@@ -424,7 +426,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		      	items.push(item);
 		      }
 		    }		
-				cb(0,items);
+				cb(0,items,db);
 			}
 		});
 	});
@@ -458,7 +460,7 @@ var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
 	      }      	
       }
     }
-    cb(0,out);
+    cb(0,out,db);
 	}
 };
 
@@ -481,7 +483,7 @@ var trimResult=function(rawresult,rs) {
 var groupInner=function(db,opts,res,cb){
 	var filterfunc=opts.filterfunc||null,
 	  rawresult=res.rawresult;
-	var field=db.get("meta").toc || opts.field;	  
+	var field=db.get("meta").toc || opts.field;
 	if (field) {
 		if (opts.ranges) {
 			rawresult=trimResult(rawresult,opts.ranges);
