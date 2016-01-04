@@ -223,7 +223,7 @@ var fetch_res=function(db,Q,opts,cb){
 			out.push(item);
 		}
 		var tocname=opts.breadcrumb;
-		if (typeof tocname!="string") tocname=db.get("meta").toc;
+		if (tocname && typeof tocname!="string") tocname=db.get("meta").toc;
 		if (tocname!==undefined) {
 			db.getTOC({tocname:tocname},function(toc){
 				var oo;
