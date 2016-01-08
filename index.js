@@ -153,6 +153,7 @@ var getFieldByVpos=function(db,field,vpos) {
 	}
 
 	i=bsearch(fieldvpos,vpos,true);
+	
 	if (i>-1) {
 		return fieldvalue[i-1];
 	}
@@ -173,8 +174,46 @@ var txtids2key=function(txtids) {
 	}
 	return out;
 };
+var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text) {
+	var out=[],hits=[],texts=[],depth,vlen,vp,i=bsearch(fieldvpos,from,true);
+	var ft,s,l;
 
+	while (i>-1) {
+		vp=fieldvpos[i];
+		vlen=fieldlen[i];
+		if (vp>=to) break;
 
+		ft=fieldtext[i];
+		vlen=fieldlen[i];
+		depth=fielddepth[i];
+		hits.push([ vp, vlen , depth]);
+		texts.push(ft);
+		if (fieldvpos[i+1]>=to)break;
+		i=bsearch(fieldvpos,fieldvpos[i+1],true);
+	}
+
+	var out=kse.vpos2pos(db, from , text,  hits);
+
+	return {texts:texts, vpos: hits, realpos: out};
+}
+var field2markup = function(db,markupfields,from,to,text) {
+	var i,field,out={},fieldtext,fieldvpos,fieldlen,fielddepth,markups;
+	if (typeof markupfields=='string') {
+		markupfields=[markupfields];
+	}
+
+	for (i=0;i<markupfields.length;i++) {
+		field=markupfields[i];
+		fieldtext=db.get(['fields',field]);
+		fieldvpos=db.get(['fields',field+'_vpos']);
+		fieldlen=db.get(['fields',field+'_len']);
+		fielddepth=db.get(['fields',field+'_depth']);
+
+		markups=getFieldsInRange(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text);
+		out[field]=markups;
+	}
+	return out;
+}
 var fetch_res=function(db,Q,opts,cb){
 	var i,u,keys,vpos,uti=opts.uti;
 	if (!uti) {
@@ -199,17 +238,18 @@ var fetch_res=function(db,Q,opts,cb){
 	}
 
 	db.get(keys,function(data){
-		var fields,item,out=[],j,k,hits=null,seg1,vp,vp_end;
+		var fields,item,out=[],j,k,vhits=null,hits=null,seg1,vp,vp_end;
 		for (j=0;j<keys.length;j+=1) {
 			hits=null;
 			seg1=db.fileSegToAbsSeg(keys[j][1],keys[j][2]);
 			vp=db.absSegToVpos(seg1);
 			vp_end=db.absSegToVpos(seg1+1);
 			if (Q) {
-				hits=kse.excerpt.realHitInRange(Q,vp,vp_end,data[j]);
+				vhits=kse.excerpt.hitInRange(Q,vp,vp_end,data[j]);
+				hits=kse.excerpt.calculateRealPos(Q.tokenize,Q.isSkip,vp,data[j],vhits);
 			}
 
-			item={uti:uti[j],text:data[j],hits:hits,vpos:vp,vpos_end:vp_end};
+			item={uti:uti[j],text:data[j],hits:hits,vhits:vhits,vpos:vp,vpos_end:vp_end};
 			if (opts.fields) {
 				fields=opts.fields;
 				if (typeof fields==="string") {
@@ -217,8 +257,11 @@ var fetch_res=function(db,Q,opts,cb){
 				}
 				item.values=[];
 				for (k=0;k<fields.length;k+=1) {
-					item.values.push(getFieldByVpos(db,fields[k],vpos));
+					item.values.push(getFieldByVpos(db,fields[k],vp));
 				}
+			}
+			if (opts.asMarkup) { 
+				item.markups=field2markup(db,opts.asMarkup,vp,vp_end,data[j]);
 			}
 			out.push(item);
 		}
@@ -250,6 +293,8 @@ var fetchfields=function(opts,db,cb1){
 	for (i=0;i<fields.length;i+=1) {
 		fieldskey.push(["fields",fields[i]]);
 		fieldskey.push(["fields",fields[i]+"_vpos"]);
+		fieldskey.push(["fields",fields[i]+"_len"]);
+		fieldskey.push(["fields",fields[i]+"_depth"]);
 	}
 	//console.log("fetching",fieldskey)
 	db.get(fieldskey,cb1);
@@ -267,7 +312,7 @@ var fetch=function(opts,cb) {
 					cb(err);
 				} else {
 					if (opts.fields) {
-						fetchfields(opts,db,function(){
+						fetchfields(opts,db,function(a,b){
 							fetch_res(db,null,opts,cb);		
 						});
 					} else {
@@ -555,23 +600,35 @@ var fillHits=function(searchable,tofind,cb) {
 };
 
 var tryOpen=function(kdbid,cb){
-	var nw=window.process!==undefined && window.process.__node_webkit;
-	var protocol=window.location.protocol;
-	var socketio= window.io!==undefined;
+	if (typeof window!=='undefined') {
+		var nw=window.process!==undefined && window.process.__node_webkit;
+		var protocol='';
+		if (window.location) protocol=window.location.protocol;
+		var socketio= window.io!==undefined;
+ 
+		if ( (protocol==="http:" || protocol==="https:") && !socketio) {
+			cb("http+local file mode");
+			return;
+		}
 
-	if ( (protocol==="http:" || protocol==="https:") && !socketio) {
-		cb("http+local file mode");
-		return;
+		if (protocol==="file:" && !nw) {
+			cb("local file mode");
+		}
 	}
 
-	if (protocol==="file:" && !nw) {
-		cb("local file mode");
-	}
-
-	kde.open(kdbid,function(err){
-		cb(err);
+	kde.open(kdbid,function(err,db){
+		cb(err,db);
 	});
 };
+var applyMarkups=function(text,opts,func) {
+	var t=new Date();
+	var r=require("./highlight").applyMarkups.apply(this,arguments);
+	return r;
+}
+
+var getMarkupPainter=function(db) {
+	return {tokenize:db.analyzer.tokenize, isSkip:db.analyzer.isSkip, applyMarkups:applyMarkups};
+}
 var renderHits=function(text,hits,func){
   var i, ex=0,out=[],now;
   hits=hits||[];
@@ -773,11 +830,12 @@ var API={
 	listkdb:listkdb,
 	fillHits:fillHits,
 	renderHits:renderHits,
+	applyMarkups:applyMarkups,
 	tryOpen:tryOpen,
 	get:get,
 	treenodehits:treenodehits,
 	getFieldRange:getFieldRange,
-	search:search
-
+	search:search,
+	getMarkupPainter:getMarkupPainter
 };
 module.exports=API;
