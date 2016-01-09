@@ -24,6 +24,41 @@ var prevUti=function(opts,cb){
 		}
 	});
 };
+//return next hit vpos and uti
+var nextHit=function(opts,cb){
+	kse.search(opts.db,opts.q,opts,function(err,res){
+		if (err) {
+			cb(err);
+			return;
+		}
+		var i=bsearch(res.rawresult,opts.vpos);
+		if (i===-1 || i===res.rawresult.length-1) {
+			cb("cannot find next hit");
+			return;
+		}
+		var nextvpos=res.rawresult[i+1];
+
+		var uti=res.engine.vpos2txtid(nextvpos);
+		cb(0,{uti:uti,vpos:nextvpos});
+	});
+}
+//return prev hit vpos and uti
+var prevHit=function(opts,cb){
+	kse.search(opts.db,opts.q,opts,function(err,res){
+		if (err) {
+			cb(err);
+			return;
+		}
+		var i=bsearch(res.rawresult,opts.vpos);
+		if (i===-1 || i===0) {
+			cb("cannot find prev hit");
+			return;
+		}
+		var prevvpos=res.rawresult[i-1];
+		var uti=res.engine.vpos2txtid(prevvpos);
+		cb(0,{uti:uti,vpos:prevvpos});
+	});
+}
 
 
 var clearHits=function(toc){
@@ -819,6 +854,8 @@ var API={
 	prev:prev,
 	nextUti:nextUti,
 	prevUti:prevUti,
+	nextHit:nextHit,
+	prevHit:prevHit,
 	vpos2uti:vpos2uti,
 	uti2vpos:uti2vpos,	
 	toc:toc,
