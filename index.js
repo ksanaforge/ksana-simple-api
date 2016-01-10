@@ -31,14 +31,14 @@ var nextHit=function(opts,cb){
 			cb(err);
 			return;
 		}
-		var i=bsearch(res.rawresult,opts.vpos);
+		var i=bsearch(res.rawresult,opts.vpos,true);
 		if (i===-1 || i===res.rawresult.length-1) {
 			cb("cannot find next hit");
 			return;
 		}
 		var nextvpos=res.rawresult[i+1];
 
-		var uti=res.engine.vpos2txtid(nextvpos);
+		var uti=res.engine.vpos2txtid(nextvpos+1); //nextvpos is the first character
 		cb(0,{uti:uti,vpos:nextvpos});
 	});
 }
@@ -49,13 +49,13 @@ var prevHit=function(opts,cb){
 			cb(err);
 			return;
 		}
-		var i=bsearch(res.rawresult,opts.vpos);
+		var i=bsearch(res.rawresult,opts.vpos,true);
 		if (i===-1 || i===0) {
 			cb("cannot find prev hit");
 			return;
 		}
 		var prevvpos=res.rawresult[i-1];
-		var uti=res.engine.vpos2txtid(prevvpos);
+		var uti=res.engine.vpos2txtid(prevvpos+1);
 		cb(0,{uti:uti,vpos:prevvpos});
 	});
 }
@@ -287,16 +287,28 @@ var fetch_res=function(db,Q,opts,cb){
 			item={uti:uti[j],text:data[j],hits:hits,vhits:vhits,vpos:vp,vpos_end:vp_end};
 			if (opts.fields) {
 				fields=opts.fields;
+				if (typeof fields=='boolean') {
+					fields=db.get('meta').toc;
+				}
+
 				if (typeof fields==="string") {
 					fields=[fields];
 				}
-				item.values=[];
-				for (k=0;k<fields.length;k+=1) {
-					item.values.push(getFieldByVpos(db,fields[k],vp));
+
+				if (fields) {
+					item.values=[];
+					for (k=0;k<fields.length;k+=1) {
+						item.values.push(getFieldByVpos(db,fields[k],vp));
+					}					
 				}
 			}
+
 			if (opts.asMarkup) { 
-				item.markups=field2markup(db,opts.asMarkup,vp,vp_end,data[j]);
+				var asMarkup=opts.asMarkup;
+				if (typeof asMarkup=='boolean') {
+					asMarkup=db.get('meta').toc;
+				}
+				if (asMarkup) item.markups=field2markup(db,asMarkup,vp,vp_end,data[j]);
 			}
 			out.push(item);
 		}
@@ -320,10 +332,17 @@ var fetch_res=function(db,Q,opts,cb){
 };
 var fetchfields=function(opts,db,cb1){
 	var i,fields=opts.fields,fieldskey=[];
-	if (typeof opts.fields==="string") {
-		fields=[opts.fields];
+	if (typeof fields==="boolean") {
+		fields=db.get('meta').toc;
 	}
 
+	if (typeof fields==="string") {
+		fields=[fields];
+	}
+	if (!fields) {
+		cb1();
+		return;
+	}
 
 	for (i=0;i<fields.length;i+=1) {
 		fieldskey.push(["fields",fields[i]]);
