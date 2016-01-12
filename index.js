@@ -4,6 +4,8 @@ var plist=require("ksana-search/plist");
 var kde=require("ksana-database");
 var bsearch=kde.bsearch;
 var treenodehits=require("./treenodehits");
+
+
 //make sure db is opened
 var nextUti=function(opts,cb){
 	kde.open(opts.db,function(err,db){
@@ -38,8 +40,10 @@ var nextHit=function(opts,cb){
 		}
 		var nextvpos=res.rawresult[i+1];
 
-		var uti=res.engine.vpos2txtid(nextvpos+1); //nextvpos is the first character
-		cb(0,{uti:uti,vpos:nextvpos});
+		var uti=res.engine.vpos2uti(nextvpos+1,function(uti){
+			cb(0,{uti:uti,vpos:nextvpos});	
+		}); //nextvpos is the first character
+		
 	});
 }
 //return prev hit vpos and uti
@@ -55,8 +59,11 @@ var prevHit=function(opts,cb){
 			return;
 		}
 		var prevvpos=res.rawresult[i-1];
-		var uti=res.engine.vpos2txtid(prevvpos+1);
-		cb(0,{uti:uti,vpos:prevvpos});
+		//var uti=res.engine.vpos2txtid(prevvpos+1);
+		res.engine.vpos2uti(prevvpos+1,function(uti){
+			cb(0,{uti:uti,vpos:prevvpos});
+		});
+		
 	});
 }
 
@@ -193,7 +200,7 @@ var getFieldByVpos=function(db,field,vpos) {
 		return fieldvalue[i-1];
 	}
 };
-
+/*
 var txtids2key=function(txtids) {
 	if (typeof txtids!=="object") {
 		txtids=[txtids];
@@ -209,6 +216,7 @@ var txtids2key=function(txtids) {
 	}
 	return out;
 };
+*/
 var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text) {
 	var out=[],hits=[],texts=[],depth,vlen,vp,i=bsearch(fieldvpos,from,true);
 	var ft,s,l;
@@ -249,85 +257,88 @@ var field2markup = function(db,markupfields,from,to,text) {
 	}
 	return out;
 }
+
+var getFileSeg=function(db,opts,cb){
+	var vpos=opts.vpos,uti=opts.uti,fileseg;
+	if (vpos) {
+		if (typeof vpos==="number") vpos=[vpos];
+		fileseg=vpos.map(function(vp){ return db.filesegFromVpos(vp)})};
+
+		if (!fileseg || !fileseg.length || fileseg[0][1]===undefined) {
+			cb("uti not found: "+uti+" in "+opts.db);
+			return;
+		}
+
+		cb(fileseg);
+	} else if (uti) {
+		//convert uti to filecontents,file,seg
+		db.getFileSegFromUti(uti,cb);
+	}
+}
+
 var fetch_res=function(db,Q,opts,cb){
-	var i,u,keys,vpos,uti=opts.uti;
-	if (!uti) {
-		uti=[];
-		vpos=opts.vpos;
-		if (typeof vpos!=="object") {
-			vpos=[vpos];
-		}
-		for (i=0;i<vpos.length;i+=1) {
-			u=db.vpos2txtid(vpos[i]);
-			uti.push(u);
-		}
-	}
-	if (typeof uti!=="object") {
-		uti=[uti];
-	} 
 
-	keys=txtids2key.call(db,uti);
-	if (!keys || !keys.length || keys[0][1]===undefined) {
-		cb("uti not found: "+uti+" in "+opts.db);
-		return;
-	}
+	getFileSeg(function(file_segments){
 
-	db.get(keys,function(data){
-		var fields,item,out=[],j,k,vhits=null,hits=null,seg1,vp,vp_end;
-		for (j=0;j<keys.length;j+=1) {
-			hits=null;
-			seg1=db.fileSegToAbsSeg(keys[j][1],keys[j][2]);
-			vp=db.absSegToVpos(seg1);
-			vp_end=db.absSegToVpos(seg1+1);
-			if (Q) {
-				vhits=kse.excerpt.hitInRange(Q,vp,vp_end,data[j]);
-				hits=kse.excerpt.calculateRealPos(Q.tokenize,Q.isSkip,vp,data[j],vhits);
+	 	var keys=file_segments.map(function(fseg){return ["filecontents",item.file,item.seg]};
+
+		db.get(keys,function(data){
+			var fields,item,out=[],j,k,vhits=null,hits=null,seg1,vp,vp_end;
+			for (j=0;j<keys.length;j+=1) {
+				hits=null;
+				seg1=db.fileSegToAbsSeg(keys[j][1],keys[j][2]);
+				vp=db.absSegToVpos(seg1);
+				vp_end=db.absSegToVpos(seg1+1);
+				if (Q) {
+					vhits=kse.excerpt.hitInRange(Q,vp,vp_end,data[j]);
+					hits=kse.excerpt.calculateRealPos(Q.tokenize,Q.isSkip,vp,data[j],vhits);
+				}
+
+				item={uti:uti[j],text:data[j],hits:hits,vhits:vhits,vpos:vp,vpos_end:vp_end};
+				if (opts.fields) {
+					fields=opts.fields;
+					if (typeof fields=='boolean') {
+						fields=db.get('meta').toc;
+					}
+
+					if (typeof fields==="string") {
+						fields=[fields];
+					}
+
+					if (fields) {
+						item.values=[];
+						for (k=0;k<fields.length;k+=1) {
+							item.values.push(getFieldByVpos(db,fields[k],vp));
+						}					
+					}
+				}
+
+				if (opts.asMarkup) { 
+					var asMarkup=opts.asMarkup;
+					if (typeof asMarkup=='boolean') {
+						asMarkup=db.get('meta').toc;
+					}
+					if (asMarkup) item.markups=field2markup(db,asMarkup,vp,vp_end,data[j]);
+				}
+				out.push(item);
 			}
-
-			item={uti:uti[j],text:data[j],hits:hits,vhits:vhits,vpos:vp,vpos_end:vp_end};
-			if (opts.fields) {
-				fields=opts.fields;
-				if (typeof fields=='boolean') {
-					fields=db.get('meta').toc;
-				}
-
-				if (typeof fields==="string") {
-					fields=[fields];
-				}
-
-				if (fields) {
-					item.values=[];
-					for (k=0;k<fields.length;k+=1) {
-						item.values.push(getFieldByVpos(db,fields[k],vp));
-					}					
-				}
-			}
-
-			if (opts.asMarkup) { 
-				var asMarkup=opts.asMarkup;
-				if (typeof asMarkup=='boolean') {
-					asMarkup=db.get('meta').toc;
-				}
-				if (asMarkup) item.markups=field2markup(db,asMarkup,vp,vp_end,data[j]);
-			}
-			out.push(item);
-		}
-		var tocname=opts.breadcrumb;
-		if (tocname && typeof tocname!="string") tocname=db.get("meta").toc;
-		if (tocname!==undefined) {
-			db.getTOC({tocname:tocname},function(toc){
-				var oo;
-				for (i=0;i<out.length;i+=1) {
-					oo=breadcrumb(db,{uti:out[i].uti},toc);
-					out[i].breadcrumb=oo.breadcrumb;
-					out[i].nodeseq=oo.nodeseq;
-				}
+			var tocname=opts.breadcrumb;
+			if (tocname && typeof tocname!="string") tocname=db.get("meta").toc;
+			if (tocname!==undefined) {
+				db.getTOC({tocname:tocname},function(toc){
+					var oo;
+					for (i=0;i<out.length;i+=1) {
+						oo=breadcrumb(db,{uti:out[i].uti},toc);
+						out[i].breadcrumb=oo.breadcrumb;
+						out[i].nodeseq=oo.nodeseq;
+					}
+					cb(0,out);
+				});
+			} else {
 				cb(0,out);
-			});
-		} else {
-			cb(0,out);
-		}
-		
+			}
+			
+		});
 	});
 };
 var fetchfields=function(opts,db,cb1){
@@ -393,11 +404,15 @@ var fetch=function(opts,cb) {
 
 var excerpt2defaultoutput=function(excerpt) {
 	var out=[],i,ex,vpos,txtid;
+	var sidsep=this.sidsep();
+	//loadSegmentId
+
 	for (i=0;i<excerpt.length;i+=1) {
 		ex=excerpt[i];
-		vpos=this.fileSegToVpos(ex.file,ex.seg);
-		txtid=this.vpos2txtid(vpos);
-		out.push({uti:txtid,text:ex.text,hits:ex.realHits,vpos:vpos});
+		//vpos=this.fileSegToVpos(ex.file,ex.seg);
+		//txtid=this.vpos2uti(vpos);
+		var sid=this.get("segments")[ex.file][ex.seg];
+		out.push({uti:sid,text:ex.text,hits:ex.realHits,vpos:vpos});
 	}
 	return out;
 };
@@ -445,7 +460,7 @@ var beginWith=function(s,txtids) {
 	}
 	return out;
 };
-
+/*
 var scan=function(opts,cb,context) {
 	kse.search(opts.db,opts.q,opts,function(err,res){
 		if (err) {
@@ -460,7 +475,7 @@ var scan=function(opts,cb,context) {
 		cb(0,out);
 	},context);
 };
-
+*/
 var filterField=function(items,regex,filterfunc) {
 	if (!regex) {
 		return [];
@@ -484,15 +499,23 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		}
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
 			var fieldhit,reg,i,item,matches,items=[], fieldsvpos=res[0],fieldsdepth=res[1],
-			prevdepth=65535,inrange=false, fieldhits;
+			prevdepth=65535,inrange=false, fieldhits ,filesegs,vposs;
 			if (!rawresult||!rawresult.length) {
 				matches=filterField(fields,regex,filterfunc);
 
-				for (i=0;i<matches.length;i+=1) {
-					item=matches[i];
-					items.push({text:item.text, uti: db.vpos2txtid(fieldsvpos[item.idx]), vpos:fieldsvpos[item.idx]});
+				for (i=0;i<matches.length;i+=1) {				
+					vposs.push(fieldsvpos[matches[i].idx]);
 				}
-				cb(0,items,db);
+				filesegs=db.fileSegFromVpos(vposs);
+
+				db.loadSegmentId(filesegs,function(){
+					for (i=0;i<matches.length;i+=1) {
+						item=matches[i];
+						items.push({text:item.text, uti: db.vpos2uti(fieldsvpos[item.idx]), vpos:fieldsvpos[item.idx]});
+					}
+					cb(0,items,db);
+				});
+
 			} else {
 				fieldhits = plist.groupbyposting2(rawresult, fieldsvpos);
 
@@ -531,7 +554,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		});
 	});
 };
-
+/*
 var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
 	var i,matches,seghits,items=[],out=[],item,vpos,seghit,reg,
 	  segnames=db.get("segnames"),segoffsets=db.get("segoffsets");
@@ -563,7 +586,7 @@ var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
     cb(0,out,db);
 	}
 };
-
+*/
 
 var trimResult=function(rawresult,rs) {
 	//assume ranges not overlap, todo :combine continuous range
@@ -589,7 +612,8 @@ var groupInner=function(db,opts,res,cb){
 			rawresult=trimResult(rawresult,opts.ranges);
 		}
 		groupByField(db,rawresult,field,opts.regex,filterfunc,null,cb);
-	} else {
+	} 
+	/*else {
 		if ((!res.rawresult || !res.rawresult.length)&& res.query) {
 			cb(0,[]);//no search result
 		} else {
@@ -599,6 +623,7 @@ var groupInner=function(db,opts,res,cb){
 			groupByTxtid(db,rawresult,opts.regex,filterfunc,cb);
 		}
 	}
+	*/
 };
 var filter=function(opts,cb) {
 	if (!opts.q){
@@ -731,30 +756,45 @@ var uti2vpos=function(opts,cb){
 
 
 var sibling=function(opts,cb) {
-	var uti=opts.uti,keys,segs,idx;
+	/*
+	  specify opts.nfile 
+	  or use uti format "nfile@sid"
+	*/
+	var uti=opts.uti,keys,segs,idx,nfile;
 
 	kde.open(opts.db,function(err,db){
 		if (err) {
 			cb(err);
 			return;
 		}
+
+		if (typeof uti==="string") {
+			var file_sid=uti.split(db.sidsep);
+			nfile=parseInt(file_sid[0]);
+		}		
 		if ( opts.vpos !==undefined && opts.uti===undefined) {
-			uti=db.vpos2txtid(opts.vpos);
+			//uti=db.vpos2txtid(opts.vpos);
+			nfile=db.fileSegFromVpos(opts.vpos).file;
 		}
 
-		keys=txtids2key.call(db,uti);
-		
-		if (!keys) {
-			cb("invalid uti: "+uti);
-			return;
+		if (isNaN(nfile)) {
+			if (typeof opts.nfile === undefined) {
+				cb("must specify file");
+				return;
+			} else {
+				nfile=opts.nfile;
+			}		
 		}
-		segs=db.getFileSegNames(keys[0][1]);
-		if (!segs) {
-			cb("invalid file id: "+keys[0][1]);
-			return;			
-		}
-		idx=segs.indexOf(uti);
-		cb(0,{sibling:segs,idx:idx});
+
+		db.get(["segments",nfile,function(segs){
+			if (!segs) {
+				cb("invalid nfile: "+nfile);
+				return;			
+			}
+			idx=segs.indexOf(uti);
+			cb(0,{sibling:segs,idx:idx});
+		});
+
 	});
 };
 
