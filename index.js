@@ -5,14 +5,22 @@ var kde=require("ksana-database");
 var bsearch=kde.bsearch;
 var treenodehits=require("./treenodehits");
 
-
 //make sure db is opened
 var nextUti=function(opts,cb){
 	kde.open(opts.db,function(err,db){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.nextTxtid(opts.uti));
+			db.uti2fileSeg(opts.uti,function(fseg){
+				var segments=db.get(["segments",fseg.file]);
+				if (fseg.seg-1<segments.length) {
+					fseg.seg+=1;
+					var uti=db.fileSeg2uti(fseg);
+					cb(0, uti );
+				} else {
+					cb("last uti "+opts.uti+" cannot next");
+				}
+			});
 		}
 	});
 };
@@ -22,7 +30,16 @@ var prevUti=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.prevTxtid(opts.uti));
+			db.uti2fileSeg(opts.uti,function(fseg){
+				var segments=db.get(["segments",fseg.file]);
+				if (fseg.seg>0) {
+					fseg.seg-=1;
+					var uti=db.fileSeg2uti(fseg);
+					cb(0,uti);	
+				} else {
+					cb("first uti "+opts.uti+" cannot prev");
+				}
+			});
 		}
 	});
 };
@@ -40,7 +57,7 @@ var nextHit=function(opts,cb){
 		}
 		var nextvpos=res.rawresult[i+1];
 
-		var uti=res.engine.vpos2uti(nextvpos+1,function(uti){
+		res.engine.vpos2uti(nextvpos+1,function(uti){
 			cb(0,{uti:uti,vpos:nextvpos});	
 		}); //nextvpos is the first character
 		
@@ -252,6 +269,7 @@ var field2markup = function(db,markupfields,from,to,text) {
 		fieldlen=db.get(['fields',field+'_len']);
 		fielddepth=db.get(['fields',field+'_depth']);
 
+		if (!fieldlen) return out;
 		markups=getFieldsInRange(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text);
 		out[field]=markups;
 	}
@@ -511,7 +529,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		}
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
 			var fieldhit,reg,i,item,matches,items=[], fieldsvpos=res[0],fieldsdepth=res[1],
-			prevdepth=65535,inrange=false, fieldhits ,filesegs,vposs,uti;
+			prevdepth=65535,inrange=false, fieldhits ,filesegs,vposs=[],uti;
 			if (!rawresult||!rawresult.length) {
 				matches=filterField(fields,regex,filterfunc);
 

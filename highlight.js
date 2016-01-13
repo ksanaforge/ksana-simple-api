@@ -61,6 +61,8 @@ var applyMarkups=function(text,opts){
 					j++;
 				}
 
+				if (vpos>=hitstart && vpos<hitend) classes=hitclass+" "+hitclass+nphrase;
+
 				for (m in markups) {
 					M=markups[m].vpos;
 					k=tagn[m];
@@ -72,7 +74,6 @@ var applyMarkups=function(text,opts){
 						k++;
 					}
 					tagn[m]=k;
-					if (vpos>=hitstart && vpos<hitend) classes=hitclass+" "+hitclass+nphrase;
 					if (vpos>=tagstart[m]&& vpos<tagend[m]) classes+=" "+tagclass;
 				}
 
