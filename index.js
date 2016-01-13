@@ -127,7 +127,7 @@ var enumAncestors=function(toc,n) {
 var breadcrumb=function(db,opts,toc,tocname){
 	var nodeseq,breadcrumb,out,p,vpos=opts.vpos;
 	if (opts.uti && opts.vpos===undefined) {
-			vpos=db.txtid2vpos(opts.uti);
+			vpos=db.uti2vpos(opts.uti);
 	}
 	p=bsearchVposInToc(toc,vpos,true);
 	if (p===-1) {
@@ -279,19 +279,18 @@ var getFileSeg=function(db,opts,cb){
 }
 
 var fetch_res=function(db,Q,opts,cb){
-
 	getFileSeg(db,opts,function(file_segments){
-		
 		var uti=opts.uti;
 		if (!uti) {
 			uti=db.vpos2uti(opts.vpos);
 		}
+
 		if (typeof uti==="string") uti=[uti];
 
 	 	var keys=file_segments.map(function(fseg){return ["filecontents",fseg.file,fseg.seg]});
 
 		db.get(keys,function(data){
-			var fields,item,out=[],j,k,vhits=null,hits=null,seg1,vp,vp_end;
+			var fields,item,out=[],i,j,k,vhits=null,hits=null,seg1,vp,vp_end;
 			for (j=0;j<keys.length;j+=1) {
 				hits=null;
 				seg1=db.fileSegToAbsSeg(keys[j][1],keys[j][2]);
@@ -420,10 +419,8 @@ var excerpt2defaultoutput=function(excerpt,cb) {
 	this.loadSegmentId(nfiles,function(){
 		for (i=0;i<excerpt.length;i+=1) {
 			ex=excerpt[i];
-			vpos=this.fileSegToVpos(ex.file,ex.seg);
-
 			var uti=this.fileSeg2uti(ex);
-			out.push({uti:uti,text:ex.text,hits:ex.realHits,vhits:ex.hits,vpos:vpos});
+			out.push({uti:uti,text:ex.text,hits:ex.realHits,vhits:ex.hits,vpos:ex.start});
 		}
 
 		cb(out);
@@ -514,7 +511,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		}
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
 			var fieldhit,reg,i,item,matches,items=[], fieldsvpos=res[0],fieldsdepth=res[1],
-			prevdepth=65535,inrange=false, fieldhits ,filesegs,vposs;
+			prevdepth=65535,inrange=false, fieldhits ,filesegs,vposs,uti;
 			if (!rawresult||!rawresult.length) {
 				matches=filterField(fields,regex,filterfunc);
 
@@ -526,7 +523,8 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 				db.loadSegmentId(filesegs,function(){
 					for (i=0;i<matches.length;i+=1) {
 						item=matches[i];
-						items.push({text:item.text, uti: db.vpos2uti(fieldsvpos[item.idx]), vpos:fieldsvpos[item.idx]});
+						uti=db.vpos2uti(fieldsvpos[item.idx]);
+						items.push({text:item.text, uti:uti , vpos:fieldsvpos[item.idx]});
 					}
 					cb(0,items,db);
 				});
@@ -557,14 +555,22 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		      }
 
 		      if (inrange && fieldhits && fieldhit.length) {
-		      	item={text: item, vpos: fieldhit[0], uti:db.vpos2txtid(fieldhit[0]) , hits:fieldhit};
+		      	item={text: item, vpos: fieldhit[0], uti:"" , hits:fieldhit};
 		      	if (postfunc) {
 		      		postfunc(item);
 		      	}
 		      	items.push(item);
 		      }
 		    }		
-				cb(0,items,db);
+				filesegs=db.fileSegFromVpos(items.map(function(item){return item.vpos}));
+
+				db.loadSegmentId(filesegs,function(){
+
+					for (i=0;i<items.length;i+=1) {
+						items[i].uti=db.vpos2uti(items[i].vpos);
+					}
+					cb(0,items,db);
+				});
 			}
 		});
 	});
