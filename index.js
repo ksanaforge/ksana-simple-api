@@ -527,29 +527,22 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 			cb("field "+field+" not found");
 			return;
 		}
+
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
+			console.log("load fields",new Date()-t,rawresult.length);
+
 			var fieldhit,reg,i,item,matches,items=[], fieldsvpos=res[0],fieldsdepth=res[1],
 			prevdepth=65535,inrange=false, fieldhits ,filesegs,vposs=[],uti;
 			if (!rawresult||!rawresult.length) {
 				matches=filterField(fields,regex,filterfunc);
-
-				for (i=0;i<matches.length;i+=1) {				
-					vposs.push(fieldsvpos[matches[i].idx]);
+				for (i=0;i<matches.length;i+=1) {
+					item=matches[i];
+					items.push({text:item.text , vpos:fieldsvpos[item.idx]});
 				}
-				filesegs=db.fileSegFromVpos(vposs);
-
-				db.loadSegmentId(filesegs,function(){
-					for (i=0;i<matches.length;i+=1) {
-						item=matches[i];
-						uti=db.vpos2uti(fieldsvpos[item.idx]);
-						items.push({text:item.text, uti:uti , vpos:fieldsvpos[item.idx]});
-					}
-					cb(0,items,db);
-				});
-
+				cb(0,items,db);
 			} else {
+				var t=new Date();
 				fieldhits = plist.groupbyposting2(rawresult, fieldsvpos);
-
 				reg =new RegExp(regex);
 
 				fieldhits.shift();
@@ -580,15 +573,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		      	items.push(item);
 		      }
 		    }		
-				filesegs=db.fileSegFromVpos(items.map(function(item){return item.vpos}));
-
-				db.loadSegmentId(filesegs,function(){
-
-					for (i=0;i<items.length;i+=1) {
-						items[i].uti=db.vpos2uti(items[i].vpos);
-					}
-					cb(0,items,db);
-				});
+				cb(0,items,db);
 			}
 		});
 	});
@@ -651,18 +636,10 @@ var groupInner=function(db,opts,res,cb){
 			rawresult=trimResult(rawresult,opts.ranges);
 		}
 		groupByField(db,rawresult,field,opts.regex,filterfunc,null,cb);
-	} 
-	/*else {
-		if ((!res.rawresult || !res.rawresult.length)&& res.query) {
-			cb(0,[]);//no search result
-		} else {
-			if (opts.ranges) {
-				rawresult=trimResult(rawresult,opts.ranges);
-			}
-			groupByTxtid(db,rawresult,opts.regex,filterfunc,cb);
-		}
+	} else {
+		//TODO , groupBySegments 
+		throw "field is not specified";
 	}
-	*/
 };
 var filter=function(opts,cb) {
 	if (!opts.q){
@@ -678,11 +655,13 @@ var filter=function(opts,cb) {
 			groupInner(db,opts,{rawresult:null},cb);
 		});
 	} else {
+		var t=new Date();
 		kse.search(opts.db,opts.q,opts,function(err,res){
 			if (err) {
 				cb(err);
 				return;
 			}
+			console.log("filter search",new Date()-t);
 			groupInner(res.engine,opts,res,cb);
 		});
 	}
