@@ -529,8 +529,6 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		}
 
 		db.get([["fields",field+"_vpos"],["fields",field+"_depth"]],function(res){
-			console.log("load fields",new Date()-t,rawresult.length);
-
 			var fieldhit,reg,i,item,matches,items=[], fieldsvpos=res[0],fieldsdepth=res[1],
 			prevdepth=65535,inrange=false, fieldhits ,filesegs,vposs=[],uti;
 			if (!rawresult||!rawresult.length) {
@@ -655,18 +653,16 @@ var filter=function(opts,cb) {
 			groupInner(db,opts,{rawresult:null},cb);
 		});
 	} else {
-		var t=new Date();
 		kse.search(opts.db,opts.q,opts,function(err,res){
 			if (err) {
 				cb(err);
 				return;
 			}
-			console.log("filter search",new Date()-t);
 			groupInner(res.engine,opts,res,cb);
 		});
 	}
 };
-var listkdb=kde.listkdb;
+
 
 var task=function(dbname,searchable,taskqueue,tofind){
 		taskqueue.push(function(err,data){
@@ -696,7 +692,12 @@ var fillHits=function(searchable,tofind,cb) {
 	taskqueue.shift()(0,{empty:true});
 };
 
-var tryOpen=function(kdbid,cb){
+var tryOpen=function(kdbid,opts,cb){
+	if (typeof opts=="function") {
+		cb=opts;
+		opts={};
+	}
+
 	if (typeof window!=='undefined') {
 		var nw=window.process!==undefined && window.process.__node_webkit;
 		var protocol='';
@@ -713,7 +714,7 @@ var tryOpen=function(kdbid,cb){
 		}
 	}
 
-	kde.open(kdbid,function(err,db){
+	kde.open(kdbid,opts,function(err,db){
 		cb(err,db);
 	});
 };
@@ -941,6 +942,32 @@ var prev=function(opts,cb,context) {
 	iterate("prev",opts,cb,context);
 };
 
+
+
+var enumKdb=function(opts,cb,context) {
+	if (typeof opts==="function") {
+		cb=opts;
+		opts={};
+	}
+
+	var taskqueue=[],out=[];
+	var enumTask=function(dbname){
+		taskqueue.push(function(err,data){
+			if (!err && !(typeof data==='object' && data.empty)) {
+				out.push([data.dbname,data.meta]);
+			}
+			kde.open(dbname,{metaonly:true},taskqueue.shift(0,data));
+		});
+	};
+
+	kde.enumKdb(function(kdbs){
+		kdbs.forEach(enumTask);
+		taskqueue.push(function(){
+			cb(out);
+		});
+		taskqueue.shift()(0,{empty:true});
+	});
+}
 var API={
 	next:next,
 	prev:prev,
@@ -955,7 +982,7 @@ var API={
 	sibling:sibling,
 	excerpt:excerpt,
 	filter:filter,
-	listkdb:listkdb,
+	enumKdb:enumKdb,
 	fillHits:fillHits,
 	renderHits:renderHits,
 	applyMarkups:applyMarkups,
