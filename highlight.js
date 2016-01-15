@@ -40,8 +40,6 @@ var applyMarkups=function(text,opts){
 		
 		var token=tokens[i];
 
-
-
 		if (opts.isBreaker && para.length) {
 			if (opts.isBreaker( token, i,tokens)){
 				O.push(opts.createPara(para,O.length));
@@ -60,9 +58,9 @@ var applyMarkups=function(text,opts){
 					hitend=hitstart+width;
 					j++;
 				}
-
-				if (vpos>=hitstart && vpos<hitend) classes=hitclass+" "+hitclass+nphrase;
-
+				if (vpos>=hitstart && vpos<hitend) {
+					classes=hitclass+" "+hitclass+nphrase;
+				}
 				for (m in markups) {
 					M=markups[m].vpos;
 					k=tagn[m];

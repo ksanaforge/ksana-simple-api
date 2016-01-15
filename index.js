@@ -942,8 +942,6 @@ var prev=function(opts,cb,context) {
 	iterate("prev",opts,cb,context);
 };
 
-
-
 var enumKdb=function(opts,cb,context) {
 	if (typeof opts==="function") {
 		cb=opts;
@@ -962,7 +960,10 @@ var enumKdb=function(opts,cb,context) {
 
 	kde.enumKdb(function(kdbs){
 		kdbs.forEach(enumTask);
-		taskqueue.push(function(){
+		taskqueue.push(function(err,data){
+			if (!err && !(typeof data==='object' && data.empty)) {
+				out.push([data.dbname,data.meta]);
+			}
 			cb(out);
 		});
 		taskqueue.shift()(0,{empty:true});
