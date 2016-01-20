@@ -988,6 +988,7 @@ var API={
 	renderHits:renderHits,
 	applyMarkups:applyMarkups,
 	tryOpen:tryOpen,
+	open:kde.open,
 	get:get,
 	treenodehits:treenodehits,
 	getFieldRange:getFieldRange,
