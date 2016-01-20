@@ -958,7 +958,7 @@ var enumKdb=function(opts,cb,context) {
 		});
 	};
 
-	kde.enumKdb(function(kdbs){
+	kde.enumKdb(opts,function(kdbs){
 		kdbs.forEach(enumTask);
 		taskqueue.push(function(err,data){
 			if (!err && !(typeof data==='object' && data.empty)) {
