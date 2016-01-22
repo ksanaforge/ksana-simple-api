@@ -519,7 +519,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		      }
 
 		      if (inrange && fieldhits && fieldhit.length) {
-		      	item={text: item, vpos: fieldhit[0], uti:db.vpos2txtid(fieldhit[0]) , hits:fieldhit};
+		      	item={text: item, vpos: fieldhit[0], uti:db.vpos2txtid(fieldhit[0]) , vhits:fieldhit};
 		      	if (postfunc) {
 		      		postfunc(item);
 		      	}
@@ -556,7 +556,7 @@ var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
 	      item=segnames[i-1];
 	      vpos=segoffsets[i-1];
 			  if (filterfunc(item,regex)) {
-			  	out.push({text:item,uti:item,hits:seghit,vpos:vpos});
+			  	out.push({text:item,uti:item,vhits:seghit,vpos:vpos});
 	      }      	
       }
     }
