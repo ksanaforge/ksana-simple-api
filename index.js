@@ -173,7 +173,7 @@ var toc=function(opts,cb,context) {
 					});
 					cb(0,out);
 			} else {
-				cb(0,{name:tocname,toc:toc,hits:res.rawresult,tocname:tocname});	
+				cb(0,{name:tocname,toc:toc,vhits:res.rawresult,tocname:tocname});	
 			}
 		});
 	});
