@@ -197,7 +197,7 @@ var toc=function(opts,cb,context) {
 					});
 					cb(0,out);
 			} else {
-				cb(0,{name:tocname,toc:toc,hits:res.rawresult,tocname:tocname});	
+				cb(0,{name:tocname,toc:toc,vhits:res.rawresult,tocname:tocname});	
 			}
 		});
 	});
@@ -564,7 +564,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		      }
 
 		      if (inrange && fieldhits && fieldhit.length) {
-		      	item={text: item, vpos: fieldhit[0], uti:"" , hits:fieldhit};
+		      	item={text: item, vpos: fieldhit[0], uti:"" , vhits:fieldhit};
 		      	if (postfunc) {
 		      		postfunc(item);
 		      	}
