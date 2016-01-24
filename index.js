@@ -211,7 +211,7 @@ var txtids2key=function(txtids) {
 };
 var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text) {
 	var out=[],hits=[],texts=[],depth,vlen,vp,i=bsearch(fieldvpos,from,true);
-	var ft,s,l;
+	var ft,s,l,previ;
 
 	while (i>-1) {
 		vp=fieldvpos[i];
@@ -224,7 +224,9 @@ var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to
 		hits.push([ vp, vlen , depth]);
 		texts.push(ft);
 		if (fieldvpos[i+1]>=to)break;
+		previ=i;
 		i=bsearch(fieldvpos,fieldvpos[i+1],true);
+		if (i===previ) break;
 	}
 
 	var out=kse.vpos2pos(db, from , text,  hits);
