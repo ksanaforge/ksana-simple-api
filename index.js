@@ -238,7 +238,7 @@ var txtids2key=function(txtids) {
 */
 var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text) {
 	var out=[],hits=[],texts=[],depth,vlen,vp,i=bsearch(fieldvpos,from,true);
-	var ft,s,l;
+	var ft,s,l,previ;
 
 	while (i>-1) {
 		vp=fieldvpos[i];
@@ -251,7 +251,9 @@ var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to
 		hits.push([ vp, vlen , depth]);
 		texts.push(ft);
 		if (fieldvpos[i+1]>=to)break;
+		previ=i;
 		i=bsearch(fieldvpos,fieldvpos[i+1],true);
+		if (i===previ) break;
 	}
 
 	var out=kse.vpos2pos(db, from , text,  hits);
@@ -813,7 +815,13 @@ var sibling=function(opts,cb) {
 				return;			
 			}
 			var offsets=db.getFileSegOffsets(nfile);
-			idx=segs.indexOf(uti);
+			if (uti) {
+				idx=segs.indexOf(uti);
+			} else {
+				idx=bsearch(offsets,opts.vpos,true);
+				if(idx>0) idx--;
+			}
+			
 			cb(0,{sibling:segs,idx:idx,offsets:offsets});
 		});
 
@@ -995,7 +1003,7 @@ var API={
 	search:createTask(search),	
 	open:createTask(open),
 
-	
+
 	fillHits:fillHits,
 	renderHits:renderHits,
 	applyMarkups:applyMarkups,
