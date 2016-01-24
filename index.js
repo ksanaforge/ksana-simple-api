@@ -5,6 +5,8 @@ var kde=require("ksana-database");
 var bsearch=kde.bsearch;
 var treenodehits=require("./treenodehits");
 
+var createTask=require("./taskqueue").createTask;
+
 //make sure db is opened
 var nextUti=function(opts,cb){
 	kde.open(opts.db,function(err,db){
@@ -818,17 +820,19 @@ var sibling=function(opts,cb) {
 	});
 };
 
-var findField=function(array,item) {
-	var i;
-	for(i=0;i<array.length;i+=1){
-		if (array[i]===item) {
-			return i;
-		}
-	}
-	return -1;
-};
+
 
 var getFieldRange=function(opts,cb){
+	var findField=function(array,item) {
+		var i;
+		for(i=0;i<array.length;i+=1){
+			if (array[i]===item) {
+				return i;
+			}
+		}
+		return -1;
+	};	
+
 	var i,v,p,start,end,vsize,fieldcaption,fieldvpos,out,error=null,values=opts.values;
 	if (!opts.field) {
 		error="missing field";
@@ -942,13 +946,9 @@ var next=function(opts,cb,context) {
 var prev=function(opts,cb,context) {
 	iterate("prev",opts,cb,context);
 };
-
-var ksaReadyCallback=null;
-
-var setReadyCallback=function(cb) {
-	ksaReadyCallback=cb;
+var open=function(opts,cb){
+	kde.open(opts.db,opts,cb);
 }
-
 var enumKdb=function(opts,cb,context) {
 	if (typeof opts==="function") {
 		cb=opts;
@@ -970,41 +970,38 @@ var enumKdb=function(opts,cb,context) {
 		taskqueue.push(function(err,data){
 			if (!err && !(typeof data==='object' && data.empty)) {
 				out.push([data.dbname,data.meta]);
-			}
-			if(ksaReadyCallback){
-				ksaReadyCallback();
-				ksaReadyCallback=null;
-			}			
+			}	
 			cb(out);
 		});
 		taskqueue.shift()(0,{empty:true});
 	});
 }
 var API={
-	next:next,
-	prev:prev,
-	nextUti:nextUti,
-	prevUti:prevUti,
-	nextHit:nextHit,
-	prevHit:prevHit,
-	vpos2uti:vpos2uti,
-	uti2vpos:uti2vpos,	
-	toc:toc,
-	fetch:fetch,
-	sibling:sibling,
-	excerpt:excerpt,
-	filter:filter,
-	enumKdb:enumKdb,
+	next:createTask(next),
+	prev:createTask(prev),
+	nextUti:createTask(nextUti),
+	prevUti:createTask(prevUti),
+	nextHit:createTask(nextHit),
+	prevHit:createTask(prevHit),
+	vpos2uti:createTask(vpos2uti),
+	uti2vpos:createTask(uti2vpos),	
+	toc:createTask(toc),
+	fetch:createTask(fetch),
+	sibling:createTask(sibling),
+	excerpt:createTask(excerpt),
+	filter:createTask(filter),
+	enumKdb:createTask(enumKdb),
+	getFieldRange:createTask(getFieldRange),
+	search:createTask(search),	
+	open:createTask(open),
+
+	
 	fillHits:fillHits,
 	renderHits:renderHits,
 	applyMarkups:applyMarkups,
 	tryOpen:tryOpen,
-	open:kde.open,
 	get:get,
-	setReadyCallback:setReadyCallback,
 	treenodehits:treenodehits,
-	getFieldRange:getFieldRange,
-	search:search,
 	getMarkupPainter:getMarkupPainter
 };
 module.exports=API;
