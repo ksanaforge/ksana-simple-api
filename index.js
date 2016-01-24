@@ -942,6 +942,12 @@ var prev=function(opts,cb,context) {
 	iterate("prev",opts,cb,context);
 };
 
+var ksaReadyCallback=null;
+
+var setReadyCallback=function(cb) {
+	ksaReadyCallback=cb;
+}
+
 var enumKdb=function(opts,cb,context) {
 	if (typeof opts==="function") {
 		cb=opts;
@@ -964,6 +970,10 @@ var enumKdb=function(opts,cb,context) {
 			if (!err && !(typeof data==='object' && data.empty)) {
 				out.push([data.dbname,data.meta]);
 			}
+			if(ksaReadyCallback){
+				ksaReadyCallback();
+				ksaReadyCallback=null;
+			}			
 			cb(out);
 		});
 		taskqueue.shift()(0,{empty:true});
@@ -990,6 +1000,7 @@ var API={
 	tryOpen:tryOpen,
 	open:kde.open,
 	get:get,
+	setReadyCallback:setReadyCallback,
 	treenodehits:treenodehits,
 	getFieldRange:getFieldRange,
 	search:search,
