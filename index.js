@@ -810,8 +810,9 @@ var sibling=function(opts,cb) {
 				cb("invalid nfile: "+nfile);
 				return;			
 			}
+			var offsets=db.getFileSegOffsets(nfile);
 			idx=segs.indexOf(uti);
-			cb(0,{sibling:segs,idx:idx});
+			cb(0,{sibling:segs,idx:idx,offsets:offsets});
 		});
 
 	});
