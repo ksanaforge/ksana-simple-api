@@ -10,7 +10,7 @@ var applyMarkups=function(text,opts){
 
 	var tokens=opts.tokenize(text).tokens;
 	var vpos=opts.vpos;
-	var i=0,str="";
+	var i=0,str=[];
 	var hitstart=0,hitend=0;
 	var tagn={},tagstart={},tagend={},tagclass="",lastclasses="";
 	var para=[],classes;
@@ -20,7 +20,7 @@ var applyMarkups=function(text,opts){
 		tagend[m]=0;
 	} 
 	
-	var breakat=[];
+	var breakat=[],start=0;
 
 	while (i<tokens.length) {
 		var skip=opts.isSkip(tokens[i]);		
@@ -48,7 +48,7 @@ var applyMarkups=function(text,opts){
 		}
 		if (i<tokens.length) {
 			if (skip) {
-				str+=token;
+				str.push(token);
 			} else {
 				classes="";	
 				//check hit
@@ -76,20 +76,22 @@ var applyMarkups=function(text,opts){
 				}
 
 				if (classes!==lastclasses) {
-					para.push(opts.createToken(str,{className:lastclasses,vpos:vpos,key:'t'+i}));
+					para.push(opts.createToken(str,{className:lastclasses,vpos:vpos,key:start}));
 					lastclasses=classes;
-					str=token;
+					start=i;
+					str=[token];
 				} else {
-					str+=token;
+					str.push(token);
 				}
 			}
 		}
 
 		if (nbreak<breakat.length && breakat[nbreak]===i) {
-			para.push(opts.createToken(str,{className:classes,vpos:vpos,key:'t'+i}));
+			para.push(opts.createToken(str,{className:classes,vpos:vpos,key:start}));
 			O.push(opts.createPara(para,O.length));
 			para=[];
-			str="";
+			str=[];
+			start=i;
 			nbreak++;
 		}
 
@@ -97,8 +99,8 @@ var applyMarkups=function(text,opts){
 		i++; 
 	}
 
-	if (str) {
-		para.push(opts.createToken(str,{className:classes,vpos:vpos,key:'t'+i}));
+	if (str.length) {
+		para.push(opts.createToken(str,{className:classes,vpos:vpos,key:start}));
 		O.push(opts.createPara(para,O.length));	
 	}
 
