@@ -5,6 +5,8 @@ var kde=require("ksana-database");
 var bsearch=kde.bsearch;
 var treenodehits=require("./treenodehits");
 
+var createTask=require("./taskqueue").createTask;
+
 //make sure db is opened
 var nextUti=function(opts,cb){
 	kde.open(opts.db,function(err,db){
@@ -236,7 +238,7 @@ var txtids2key=function(txtids) {
 */
 var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text) {
 	var out=[],hits=[],texts=[],depth,vlen,vp,i=bsearch(fieldvpos,from,true);
-	var ft,s,l;
+	var ft,s,l,previ;
 
 	while (i>-1) {
 		vp=fieldvpos[i];
@@ -249,7 +251,9 @@ var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to
 		hits.push([ vp, vlen , depth]);
 		texts.push(ft);
 		if (fieldvpos[i+1]>=to)break;
+		previ=i;
 		i=bsearch(fieldvpos,fieldvpos[i+1],true);
+		if (i===previ) break;
 	}
 
 	var out=kse.vpos2pos(db, from , text,  hits);
@@ -810,24 +814,33 @@ var sibling=function(opts,cb) {
 				cb("invalid nfile: "+nfile);
 				return;			
 			}
-			idx=segs.indexOf(uti);
-			cb(0,{sibling:segs,idx:idx});
+			var offsets=db.getFileSegOffsets(nfile);
+			if (uti) {
+				idx=segs.indexOf(uti);
+			} else {
+				idx=bsearch(offsets,opts.vpos,true);
+				if(idx>0) idx--;
+			}
+			
+			cb(0,{sibling:segs,idx:idx,offsets:offsets});
 		});
 
 	});
 };
 
-var findField=function(array,item) {
-	var i;
-	for(i=0;i<array.length;i+=1){
-		if (array[i]===item) {
-			return i;
-		}
-	}
-	return -1;
-};
+
 
 var getFieldRange=function(opts,cb){
+	var findField=function(array,item) {
+		var i;
+		for(i=0;i<array.length;i+=1){
+			if (array[i]===item) {
+				return i;
+			}
+		}
+		return -1;
+	};	
+
 	var i,v,p,start,end,vsize,fieldcaption,fieldvpos,out,error=null,values=opts.values;
 	if (!opts.field) {
 		error="missing field";
@@ -941,7 +954,9 @@ var next=function(opts,cb,context) {
 var prev=function(opts,cb,context) {
 	iterate("prev",opts,cb,context);
 };
-
+var open=function(opts,cb){
+	kde.open(opts.db,opts,cb);
+}
 var enumKdb=function(opts,cb,context) {
 	if (typeof opts==="function") {
 		cb=opts;
@@ -963,36 +978,38 @@ var enumKdb=function(opts,cb,context) {
 		taskqueue.push(function(err,data){
 			if (!err && !(typeof data==='object' && data.empty)) {
 				out.push([data.dbname,data.meta]);
-			}
+			}	
 			cb(out);
 		});
 		taskqueue.shift()(0,{empty:true});
 	});
 }
 var API={
-	next:next,
-	prev:prev,
-	nextUti:nextUti,
-	prevUti:prevUti,
-	nextHit:nextHit,
-	prevHit:prevHit,
-	vpos2uti:vpos2uti,
-	uti2vpos:uti2vpos,	
-	toc:toc,
-	fetch:fetch,
-	sibling:sibling,
-	excerpt:excerpt,
-	filter:filter,
-	enumKdb:enumKdb,
+	next:createTask(next),
+	prev:createTask(prev),
+	nextUti:createTask(nextUti),
+	prevUti:createTask(prevUti),
+	nextHit:createTask(nextHit),
+	prevHit:createTask(prevHit),
+	vpos2uti:createTask(vpos2uti),
+	uti2vpos:createTask(uti2vpos),	
+	toc:createTask(toc),
+	fetch:createTask(fetch),
+	sibling:createTask(sibling),
+	excerpt:createTask(excerpt),
+	filter:createTask(filter),
+	enumKdb:createTask(enumKdb),
+	getFieldRange:createTask(getFieldRange),
+	search:createTask(search),	
+	open:createTask(open),
+
+
 	fillHits:fillHits,
 	renderHits:renderHits,
 	applyMarkups:applyMarkups,
 	tryOpen:tryOpen,
-	open:kde.open,
 	get:get,
 	treenodehits:treenodehits,
-	getFieldRange:getFieldRange,
-	search:search,
 	getMarkupPainter:getMarkupPainter
 };
 module.exports=API;
