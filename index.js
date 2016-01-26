@@ -300,7 +300,7 @@ var fetch_res=function(db,Q,opts,cb){
 				if (fields) {
 					item.values=[];
 					for (k=0;k<fields.length;k+=1) {
-						item.values.push(getFieldByVpos(db,fields[k],vp));
+						item.values.push(getFieldByVpos(db,fields[k],vp_end));
 					}					
 				}
 			}
