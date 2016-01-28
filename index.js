@@ -584,8 +584,13 @@ var trimResult=function(rawresult,rs) {
 };
 var groupInner=function(db,opts,res,cb){
 	var filterfunc=opts.filterfunc||null,
-	  rawresult=res.rawresult;
-	var field=db.get("meta").toc || opts.field;
+  rawresult=res.rawresult;
+  var field=opts.field;
+
+  if (typeof field==="boolean" && opts.field) {
+  	field=db.get("meta").toc;	
+  }
+
 	if (field) {
 		if (opts.ranges) {
 			rawresult=trimResult(rawresult,opts.ranges);
