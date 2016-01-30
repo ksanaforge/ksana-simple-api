@@ -720,7 +720,14 @@ var vpos2uti=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.vpos2txtid(opts.vpos));
+			if (opts.vpos instanceof Array) {
+				cb(0,
+					opts.vpos.map(function(vpos){
+					return db.vpos2txtid(vpos);
+				}));
+			} else {
+				cb(0,db.vpos2txtid(opts.vpos));	
+			}
 		}
 	});
 };
@@ -730,7 +737,15 @@ var uti2vpos=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.txtid2vpos(opts.uti));
+			if (opts.uti instanceof Array) {
+				cb(0,
+					opts.uti.map(function(uti){
+					return db.txtid2vpos(uti);
+				}));
+			} else {
+				cb(0,db.txtid2vpos(opts.uti));	
+			}
+			
 		}
 	});
 };
