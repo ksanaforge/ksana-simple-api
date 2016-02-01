@@ -4,15 +4,18 @@ var plist=require("ksana-search/plist");
 var kde=require("ksana-database");
 var bsearch=kde.bsearch;
 var treenodehits=require("./treenodehits");
-
 var createTask=require("./taskqueue").createTask;
+var indexer10=require("./indexer10"); //old format
 
-//make sure db is opened
 var nextUti=function(opts,cb){
 	kde.open(opts.db,function(err,db){
 		if (err) {
 			cb(err);
 		} else {
+			if (db.get("meta").indexer===10) {
+				indexer10.nextUti(opts,cb);
+				return;
+			}
 			db.uti2fileSeg(opts.uti,function(fseg){
 				var segments=db.get(["segments",fseg.file]);
 				if (fseg.seg-1<segments.length) {
@@ -32,6 +35,10 @@ var prevUti=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
+			if (db.get("meta").indexer===10) {
+				indexer10.prevUti(opts,cb);
+				return;
+			}
 			db.uti2fileSeg(opts.uti,function(fseg){
 				var segments=db.get(["segments",fseg.file]);
 				if (fseg.seg>0) {
@@ -219,23 +226,7 @@ var getFieldByVpos=function(db,field,vpos) {
 		return fieldvalue[i-1];
 	}
 };
-/*
-var txtids2key=function(txtids) {
-	if (typeof txtids!=="object") {
-		txtids=[txtids];
-	}
-	var i,fseg,out=[];
-	for (i=0;i<txtids.length;i+=1) {
-		fseg=this.txtid2fileSeg(txtids[i]);
-		if (!fseg) {
-			out.push(["filecontents",0,0]);
-		} else {
-			out.push(["filecontents",fseg.file,fseg.seg]);
-		}
-	}
-	return out;
-};
-*/
+
 var getFieldsInRange=function(db,fieldtext,fieldvpos,fieldlen,fielddepth,from,to,text) {
 	var out=[],hits=[],texts=[],depth,vlen,vp,i=bsearch(fieldvpos,from,true);
 	var ft,s,l,previ;
@@ -300,18 +291,8 @@ var getFileSeg=function(db,opts,cb){
 	}
 }
 
-var fetch_res=function(db,Q,opts,cb){
-	getFileSeg(db,opts,function(file_segments){
-		var uti=opts.uti;
-		if (!uti) {
-			uti=db.vpos2uti(opts.vpos);
-		}
-
-		if (typeof uti==="string") uti=[uti];
-
-	 	var keys=file_segments.map(function(fseg){return ["filecontents",fseg.file,fseg.seg]});
-
-		db.get(keys,function(data){
+var fetchcontent=function(keys,db,Q,opts,cb){
+	db.get(keys,function(data){
 			var fields,item,out=[],i,j,k,vhits=null,hits=null,seg1,vp,vp_end;
 			for (j=0;j<keys.length;j+=1) {
 				hits=null;
@@ -323,7 +304,7 @@ var fetch_res=function(db,Q,opts,cb){
 					hits=kse.excerpt.calculateRealPos(Q.tokenize,Q.isSkip,vp,data[j],vhits);
 				}
 
-				item={uti:uti[j],text:data[j],hits:hits,vhits:vhits,vpos:vp,vpos_end:vp_end};
+				item={uti:opts.uti[j],text:data[j],hits:hits,vhits:vhits,vpos:vp,vpos_end:vp_end};
 				if (opts.fields) {
 					fields=opts.fields;
 					if (typeof fields=='boolean') {
@@ -366,9 +347,21 @@ var fetch_res=function(db,Q,opts,cb){
 			} else {
 				cb(0,out);
 			}
-			
 		});
-	});
+}
+
+var fetch_res=function(db,Q,opts,cb){
+	if (db.get("meta").indexer===10) {
+		var keys=indexer10.fetch_res_prepare_keys(db,opts);
+		fetchcontent(keys,db,Q,opts,cb);
+	} else {
+		getFileSeg(db,opts,function(file_segments){
+			var uti=opts.uti;
+			if (typeof uti==="string") uti=[uti];
+		 	var keys=file_segments.map(function(fseg){return ["filecontents",fseg.file,fseg.seg]});
+		 	fetchcontent(keys,db,Q,opts,cb);
+		});
+	}
 };
 var fetchfields=function(opts,db,cb1){
 	var i,fields=opts.fields,fieldskey=[];
@@ -419,6 +412,8 @@ var fetch=function(opts,cb) {
 			if (err) {
 				cb(err);
 			} else {
+					var fres=fetch_res;
+
 					if (opts.fields) {
 						fetchfields(opts,res.engine,function(){
 							fetch_res(res.engine,res,opts,cb);
@@ -494,22 +489,7 @@ var beginWith=function(s,txtids) {
 	}
 	return out;
 };
-/*
-var scan=function(opts,cb,context) {
-	kse.search(opts.db,opts.q,opts,function(err,res){
-		if (err) {
-			cb(err);
-			return;
-		}
-		var q,db=res.engine,out=[],i,segnames=db.get("segnames");
-		for (i=0;i<opts.sentence.length;i+=1) {
-			q=opts.sentence.substr(i);
-			out=out.concat(beginWith(q,segnames));
-		}
-		cb(0,out);
-	},context);
-};
-*/
+
 var filterField=function(items,regex,filterfunc) {
 	if (!regex) {
 		return [];
@@ -581,37 +561,6 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 	});
 };
 /*
-var groupByTxtid=function(db,rawresult,regex,filterfunc,cb) {
-	var i,matches,seghits,items=[],out=[],item,vpos,seghit,reg,
-	  segnames=db.get("segnames"),segoffsets=db.get("segoffsets");
-
-	if (!rawresult||!rawresult.length) {
-		//no q , filter all field
-		matches=filterField(segnames,regex,filterfunc);
-
-		items=matches.map(function(item){
-			return {text:item.text, uti:item.text, vpos:segoffsets[item.idx]};
-		});
-		cb(0,items);
-
-	} else {
-    seghits= plist.groupbyposting2(rawresult, segoffsets);
-    reg=new RegExp(regex);
-
-		filterfunc=filterfunc|| reg.test.bind(reg);
-    for (i=0;i<seghits.length;i+=1) {
-      seghit=seghits[i];
-      if (seghit &&seghit.length) {
-	      item=segnames[i-1];
-	      vpos=segoffsets[i-1];
-			  if (filterfunc(item,regex)) {
-			  	out.push({text:item,uti:item,hits:seghit,vpos:vpos});
-	      }      	
-      }
-    }
-    cb(0,out,db);
-	}
-};
 */
 
 var trimResult=function(rawresult,rs) {
@@ -646,7 +595,11 @@ var groupInner=function(db,opts,res,cb){
 		groupByField(db,rawresult,field,opts.regex,filterfunc,null,cb);
 	} else {
 		//TODO , groupBySegments 
-		throw "field is not specified";
+		if (db.get("meta").indexer===10) {
+			indexer10.groupByUti(db,rawresult,opts.regex,filterfunc,cb);
+		} else {
+			throw "field is not specified";
+		}
 	}
 };
 var filter=function(opts,cb) {
@@ -767,7 +720,7 @@ var vpos2uti=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.vpos2txtid(opts.vpos));
+			cb(0,db.vpos2uti(opts.vpos));
 		}
 	});
 };
@@ -777,7 +730,7 @@ var uti2vpos=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.txtid2vpos(opts.uti));
+			cb(0,db.uti2vpos(opts.uti));
 		}
 	});
 };
@@ -794,6 +747,11 @@ var sibling=function(opts,cb) {
 	kde.open(opts.db,function(err,db){
 		if (err) {
 			cb(err);
+			return;
+		}
+
+		if (db.get("meta").indexer===10){
+			indexer10.sibling(opts,cb);
 			return;
 		}
 
@@ -930,7 +888,12 @@ var iterate=function(action,opts,cb,context) {
 	if (!opts.q) {
 		kde.open(opts.db,function(err,db){
 			if (!err) {
-				iterateInner(db,action,opts,cb,context);
+				if (db.get("meta").indexer===10) {
+					indexer10.iterateInner(db,action,opts,cb,context);
+					fetch(opts,cb,context);
+				} else {
+					iterateInner(db,action,opts,cb,context);					
+				}
 			}
 			else {
 				cb(err);
@@ -940,7 +903,12 @@ var iterate=function(action,opts,cb,context) {
 	}
 	kse.search(opts.db,opts.q,opts,function(err,res){
 		if (!err) {
-			iterateInner(res.engine,action,opts,cb,context);
+			if (db.get("meta").indexer===10) {
+				indexer10.iterateInner(db,action,opts,cb,context);
+				fetch(opts,cb,context);
+			}else {				
+				iterateInner(res.engine,action,opts,cb,context);
+			}
 		} else {
 			cb(err);
 		}
@@ -961,7 +929,9 @@ var prev=function(opts,cb,context) {
 	iterate("prev",opts,cb,context);
 };
 var open=function(opts,cb){
-	kde.open(opts.db,opts,cb);
+	var db=opts.db;
+	if (typeof opts=="string") db=opts; //accept open("dbname")
+	kde.open(db,opts,cb);
 }
 var enumKdb=function(opts,cb,context) {
 	if (typeof opts==="function") {
@@ -1008,7 +978,6 @@ var API={
 	getFieldRange:createTask(getFieldRange),
 	search:createTask(search),	
 	open:createTask(open),
-
 
 	fillHits:fillHits,
 	renderHits:renderHits,
