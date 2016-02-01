@@ -548,7 +548,7 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		      }
 
 		      if (inrange && fieldhits && fieldhit.length) {
-		      	item={text: item, vpos: fieldhit[0], uti:"" , vhits:fieldhit};
+		      	item={text: item, vpos: fieldhit[0], uti:db.vpos2uti(fieldhit[0]) , vhits:fieldhit};
 		      	if (postfunc) {
 		      		postfunc(item);
 		      	}
