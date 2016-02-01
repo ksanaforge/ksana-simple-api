@@ -18,9 +18,23 @@ var txtids2key=function(txtids) {
 	}
 	return out;
 };
-
+var _sibling=function(db,uti,cb){
+		var keys=txtids2key.call(db,uti);
+		
+		if (!keys) {
+			cb("invalid uti: "+uti);
+			return;
+		}
+		var segs=db.getFileSegNames(keys[0][1]);
+		if (!segs) {
+			cb("invalid file id: "+keys[0][1]);
+			return;			
+		}
+		var idx=segs.indexOf(uti);
+		cb(0,{sibling:segs,idx:idx});
+}
 var sibling=function(opts,cb) {
-	var uti=opts.uti,keys,segs,idx;
+	var uti=opts.uti;
 
 	kde.open(opts.db,function(err,db){
 		if (err) {
@@ -28,22 +42,12 @@ var sibling=function(opts,cb) {
 			return;
 		}
 		if ( opts.vpos !==undefined && opts.uti===undefined) {
-			uti=db.vpos2uti(opts.vpos);
+			db.vpos2uti(opts.vpos,function(uti){
+				_sibling(db,uti,cb);
+			});
+		} else {
+			_sibling(db,opts.uti,cb);
 		}
-
-		keys=txtids2key.call(db,uti);
-		
-		if (!keys) {
-			cb("invalid uti: "+uti);
-			return;
-		}
-		segs=db.getFileSegNames(keys[0][1]);
-		if (!segs) {
-			cb("invalid file id: "+keys[0][1]);
-			return;			
-		}
-		idx=segs.indexOf(uti);
-		cb(0,{sibling:segs,idx:idx});
 	});
 };
 var nextUti=function(opts,cb){
