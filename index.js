@@ -12,7 +12,7 @@ var nextUti=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			if (db.get("meta").indexer===10) {
+			if ((db.get("meta").indexer||10)<16) {
 				indexer10.nextUti(opts,cb);
 				return;
 			}
@@ -35,7 +35,7 @@ var prevUti=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			if (db.get("meta").indexer===10) {
+			if (indexer10.valid(db)) {
 				indexer10.prevUti(opts,cb);
 				return;
 			}
@@ -351,15 +351,19 @@ var fetchcontent=function(keys,db,Q,opts,cb){
 }
 
 var fetch_res=function(db,Q,opts,cb){
-	if (db.get("meta").indexer===10) {
+	if (indexer10.valid(db)) {
 		var keys=indexer10.fetch_res_prepare_keys(db,opts);
 		fetchcontent(keys,db,Q,opts,cb);
 	} else {
 		getFileSeg(db,opts,function(file_segments){
 			var uti=opts.uti;
+			if (typeof uti==="undefined" && opts.vpos) {
+				uti=db.vpos2uti(opts.vpos);
+			} 
 			if (typeof uti==="string") uti=[uti];
-		 	var keys=file_segments.map(function(fseg){return ["filecontents",fseg.file,fseg.seg]});
-		 	fetchcontent(keys,db,Q,opts,cb);
+			opts.uti=uti;
+			var keys=file_segments.map(function(fseg){return ["filecontents",fseg.file,fseg.seg]});
+			fetchcontent(keys,db,Q,opts,cb);				
 		});
 	}
 };
@@ -546,9 +550,9 @@ var groupByField=function(db,rawresult,field,regex,filterfunc,postfunc,cb) {
 		      		prevdepth=65535;
 		      	}
 		      }
-
+		      //uti is not available yet db.vpos2uti(fieldhit[0])
 		      if (inrange && fieldhits && fieldhit.length) {
-		      	item={text: item, vpos: fieldhit[0], uti:db.vpos2uti(fieldhit[0]) , vhits:fieldhit};
+		      	item={text: item, vpos: fieldhit[0] , vhits:fieldhit};
 		      	if (postfunc) {
 		      		postfunc(item);
 		      	}
@@ -595,7 +599,7 @@ var groupInner=function(db,opts,res,cb){
 		groupByField(db,rawresult,field,opts.regex,filterfunc,null,cb);
 	} else {
 		//TODO , groupBySegments 
-		if (db.get("meta").indexer===10) {
+		if (indexer10.valid(db)) {
 			indexer10.groupByUti(db,rawresult,opts.regex,filterfunc,cb);
 		} else {
 			throw "field is not specified";
@@ -720,7 +724,13 @@ var vpos2uti=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.vpos2uti(opts.vpos));
+			if (cb) {
+				db.vpos2uti(opts.vpos,function(uti){
+					cb(0,uti);
+				});	
+			} else {
+				return db.vpos2uti(opts.vpos);
+			}
 		}
 	});
 };
@@ -730,7 +740,13 @@ var uti2vpos=function(opts,cb){
 		if (err) {
 			cb(err);
 		} else {
-			cb(0,db.uti2vpos(opts.uti));
+			if (cb) {
+				db.uti2vpos(opts.uti,function(vpos){
+					cb(0,vpos);
+				});
+			} else {
+				return db.uti2vpos(opts.uti);
+			}
 		}
 	});
 };
@@ -750,7 +766,7 @@ var sibling=function(opts,cb) {
 			return;
 		}
 
-		if (db.get("meta").indexer===10){
+		if (indexer10.valid(db)){
 			indexer10.sibling(opts,cb);
 			return;
 		}
@@ -888,7 +904,7 @@ var iterate=function(action,opts,cb,context) {
 	if (!opts.q) {
 		kde.open(opts.db,function(err,db){
 			if (!err) {
-				if (db.get("meta").indexer===10) {
+				if (indexer10.valid(db)) {
 					indexer10.iterateInner(db,action,opts,cb,context);
 					fetch(opts,cb,context);
 				} else {
@@ -903,7 +919,7 @@ var iterate=function(action,opts,cb,context) {
 	}
 	kse.search(opts.db,opts.q,opts,function(err,res){
 		if (!err) {
-			if (db.get("meta").indexer===10) {
+			if (indexer10.valid(db)) {
 				indexer10.iterateInner(db,action,opts,cb,context);
 				fetch(opts,cb,context);
 			}else {				

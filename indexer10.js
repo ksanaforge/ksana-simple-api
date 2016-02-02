@@ -146,5 +146,8 @@ var groupByUti=function(db,rawresult,regex,filterfunc,cb) {
     cb(0,out,db);
 	}
 };
+var valid=function(db){
+	return (db.get("meta").indexer||10)<16;
+}
 module.exports={sibling:sibling,nextUti:nextUti,prevUti:prevUti,iterateInner:iterateInner
-,groupByUti:groupByUti,fetch_res_prepare_keys:fetch_res_prepare_keys};
+,groupByUti:groupByUti,fetch_res_prepare_keys:fetch_res_prepare_keys,valid:valid};
