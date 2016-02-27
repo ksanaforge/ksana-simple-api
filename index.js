@@ -802,7 +802,7 @@ var sibling=function(opts,cb) {
 				if(idx>0) idx--;
 			}
 			
-			cb(0,{sibling:segs,idx:idx,offsets:offsets});
+			cb(0,{sibling:segs,idx:idx,offsets:offsets,nfile:nfile});
 		});
 
 	});
